@@ -62,13 +62,13 @@ class CompressionSpring:
         CoreUtils.reload_enum(obj, "Compression", "EndType")
         CoreUtils.add_property(obj, "CoilsInactive", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "AddCoilsAtSolid", 0.0, "App::PropertyFloat", "Global")
-        CoreUtils.add_property(obj, "CatalogName", "", "App::PropertyString", "Global", 2)
-        CoreUtils.add_property(obj, "CatalogNumber", "", "App::PropertyString", "Global", 2)
-        CoreUtils.add_property(obj, "tbase010", 0.010, "App::PropertyFloat", "Global", 2) # set value = 0.010
-        CoreUtils.add_property(obj, "tbase400", 0.400, "App::PropertyFloat", "Global", 2) # set value = 0.400
-        CoreUtils.add_property(obj, "const_term", 0.0, "App::PropertyFloat", "Global", 2)
-        CoreUtils.add_property(obj, "slope_term", 0.0, "App::PropertyFloat", "Global", 2)
-        CoreUtils.add_property(obj, "tensile_010", 1000.0 * SpringUtils.MUSIC_WIRE_T010, "App::PropertyFloat", "Global", 2)
+        CoreUtils.add_property(obj, "CatalogName", "", "App::PropertyString", "Global", 2) # hidden
+        CoreUtils.add_property(obj, "CatalogNumber", "", "App::PropertyString", "Global", 2) # hidden
+        CoreUtils.add_property(obj, "tbase010", 0.254, "App::PropertyFloat", "Global", 2)  # hidden # set value = 0.010
+        CoreUtils.add_property(obj, "tbase400", 10.160, "App::PropertyFloat", "Global", 2)  # hidden # set value = 0.400
+        CoreUtils.add_property(obj, "const_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
+        CoreUtils.add_property(obj, "slope_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
+        CoreUtils.add_property(obj, "tensile_010", 1000.0 * SpringUtils.MUSIC_WIRE_T010, "App::PropertyFloat", "Global", 2) # hidden
 
         obj.Proxy = self
         ViewProviderSpring(obj.ViewObject)
@@ -82,7 +82,7 @@ class CompressionSpring:
         SpringUtils.update_properties(obj)
 
     def onChanged(self, obj, prop):
-        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
+        FreeCAD.Console.PrintMessage(f"[CompressionSpring.onChanged] self={self} obj={obj}\n")
         if prop == "PropCalcMethod":
             selection = getattr(obj, "PropCalcMethod", None)
             if isinstance(selection, (list, tuple)):
