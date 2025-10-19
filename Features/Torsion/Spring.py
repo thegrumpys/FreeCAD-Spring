@@ -30,7 +30,16 @@ class TorsionSpring:
     def execute(self, obj):
         radius = obj.OutsideDiameterAtFree / 2.0
         wire_radius = obj.WireDiameter / 2.0
-        obj.Shape = CoreUtils.helix_solid(radius, obj.Pitch, obj.LengthAtFree, wire_radius)
+        end_type_selection = getattr(obj, "EndType", None)
+        end_type = CoreUtils.enum_selection_value(end_type_selection)
+        obj.Shape = SpringUtils.spring_solid(
+            0,
+            end_type,
+            radius,
+            obj.Pitch,
+            obj.LengthAtFree,
+            wire_radius,
+        )
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
 

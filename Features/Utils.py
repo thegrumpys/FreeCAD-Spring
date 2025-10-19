@@ -1,4 +1,4 @@
-import FreeCAD, Part
+import FreeCAD
 import sys, os, json, math, time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -36,32 +36,6 @@ def add_property(obj, name, default, typ="App::PropertyFloat", group="Spring", m
             setattr(obj, name, default)
         obj.setEditorMode(name, mode)
         
-def helix_solid(radius, pitch, height, wire_radius):
-    """Create a helical solid (coil) from geometric parameters."""
-    FreeCAD.Console.PrintMessage(f"[helix_solid] radius={radius} pitch={pitch} height={height} wire_radius={wire_radius}\n")
-    helix = Part.makeHelix(pitch, height, radius)
-    helix_wire = helix if isinstance(helix, Part.Wire) else Part.Wire([helix])
-    helix_edge = helix_wire.Edges[0]
-
-    u0 = helix_edge.FirstParameter
-    start_pt = helix_edge.valueAt(u0)
-    tangent = helix_edge.tangentAt(u0)
-    if isinstance(tangent, tuple):
-        tangent = tangent[0]
-    tangent.normalize()
-
-    circle = Part.makeCircle(wire_radius, start_pt, tangent)
-    circle_wire = Part.Wire(circle)
-
-    try:
-        sweep = helix_wire.makePipeShell([circle_wire], True, True)
-        if sweep.ShapeType == "Shell":
-            sweep = Part.makeSolid(sweep)
-    except Exception:
-        sweep = Part.makeCylinder(wire_radius, height)
-
-    return sweep
-
 def spring_coils(height, pitch):
     """Number of coils based on total height and pitch."""
     return height / pitch
