@@ -1,5 +1,9 @@
 import FreeCAD, FreeCADGui
-from PySide2 import QtWidgets
+
+try:  # FreeCAD 0.21 and earlier
+    from PySide2 import QtWidgets
+except ImportError:  # FreeCAD 0.22 / 1.0 and newer ship with PySide6
+    from PySide6 import QtWidgets
 
 class SpringPreferencePage:
     PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/Spring"
