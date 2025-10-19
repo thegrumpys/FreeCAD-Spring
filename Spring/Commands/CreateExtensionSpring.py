@@ -1,5 +1,5 @@
 import FreeCADGui as Gui
-from Features.Extension import Spring as ExtensionSpring
+from Spring.Features.Extension import Spring as ExtensionSpring
 
 class CreateExtensionSpring:
     """Command to create a parametric extension spring"""
@@ -7,7 +7,7 @@ class CreateExtensionSpring:
     def GetResources(self):
         """Defines icon, tooltip, and menu text"""
         return {
-            "Pixmap": "extension.svg",  # must exist in Resources/icons/
+            "Pixmap": "extension.svg",  # must exist in Spring/Resources/icons/
             "MenuText": "Extension Spring",
             "ToolTip": "Create a parametric extension spring",
         }

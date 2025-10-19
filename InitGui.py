@@ -8,7 +8,7 @@ except NameError:
     import inspect
     MODULE_PATH = os.path.dirname(inspect.getfile(inspect.currentframe()))
 
-Gui.addIconPath(os.path.join(MODULE_PATH, "Resources", "icons"))
+Gui.addIconPath(os.path.join(MODULE_PATH, "Spring", "Resources", "icons"))
 
 class SpringWorkbench(Gui.Workbench):
     MenuText = "Spring"

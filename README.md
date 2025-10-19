@@ -2,7 +2,7 @@
 
 Design and analyze **compression**, **extension**, and **torsion** springs directly inside FreeCAD.
 
-![Spring Workbench Toolbar](Resources/icons/workbench.svg)
+![Spring Workbench Toolbar](Spring/Resources/icons/workbench.svg)
 
 ---
 
@@ -69,46 +69,47 @@ the supplied default if a setting has not been stored yet.
 ## 📁 Repository Structure (via `tree -I '__pycache__'`)
 
     FreeCAD-Spring/
-    ├── __init__.py
-    ├── Commands
+    ├── Spring
     │   ├── __init__.py
-    │   ├── CmdCompressionSpring.py
-    │   ├── CmdExtensionSpring.py
-    │   ├── CmdSpringInfo.py
-    │   └── CmdTorsionSpring.py
-    ├── Dialogs
-    │   ├── __init__.py
-    │   └── SpringInfoDialog.py
-    ├── Features
-    │   ├── __init__.py
-    │   ├── Compression
+    │   ├── Commands
     │   │   ├── __init__.py
-    │   │   └── Spring.py
-    │   ├── Extension
+    │   │   ├── CreateCompressionSpring.py
+    │   │   ├── CreateExtensionSpring.py
+    │   │   ├── CreateTorsionSpring.py
+    │   │   └── DisplaySpringInfo.py
+    │   ├── Dialogs
     │   │   ├── __init__.py
-    │   │   └── Spring.py
-    │   ├── Torsion
+    │   │   └── SpringInfoDialog.py
+    │   ├── Features
     │   │   ├── __init__.py
-    │   │   └── Spring.py
-    │   ├── Utils.py
-    │   └── ViewProviderSpring.py
+    │   │   ├── Compression
+    │   │   │   ├── __init__.py
+    │   │   │   └── Spring.py
+    │   │   ├── Extension
+    │   │   │   ├── __init__.py
+    │   │   │   └── Spring.py
+    │   │   ├── Torsion
+    │   │   │   ├── __init__.py
+    │   │   │   └── Spring.py
+    │   │   ├── Utils.py
+    │   │   └── ViewProviderSpring.py
+    │   ├── Preferences
+    │   │   ├── __init__.py
+    │   │   └── SpringPreferencePage.py
+    │   └── Resources
+    │       └── icons
+    │           ├── compression.svg
+    │           ├── extension.svg
+    │           ├── preferences-springs.svg
+    │           ├── SpringInfo.svg
+    │           ├── torsion.svg
+    │           └── workbench.svg
     ├── Init.py
     ├── InitGui.py
     ├── LICENSE
-    ├── Preferences
-    │   ├── __init__.py
-    │   └── SpringPreferencePage.py
     ├── README.md
-    ├── Resources
-    │   └── icons
-    │       ├── compression.svg
-    │       ├── extension.svg
-    │       ├── preferences-springs.svg
-    │       ├── SpringInfo.svg
-    │       ├── torsion.svg
-    │       └── workbench.svg
     └── Tests
-        └── test_Spring.py
+        └── test_Springs.py
 
 ---
 
