@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package format="1">
+  <name>Spring</name>
+  <version>0.1.0</version>
+  <summary>Spring Workbench for FreeCAD</summary>
+  <description>
+    Design and analyze compression, extension, and torsion springs directly inside FreeCAD.
+  </description>
+  <maintainer email="Info@SpringDesignSoftware.org">thegrumpys</maintainer>
+  <license>MIT</license>
+  <url type="homepage">https://github.com/thegrumpys/FreeCAD-Spring</url>
+  <freecad min="0.21" />
+</package>
