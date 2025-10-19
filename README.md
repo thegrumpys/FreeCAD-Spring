@@ -69,32 +69,56 @@ the supplied default if a setting has not been stored yet.
 ## 📁 Repository Structure (via `tree -I '__pycache__'`)
 
     FreeCAD-Spring/
+    ├── Init.py
+    ├── InitGui.py
+    ├── LICENSE
+    ├── package.xml
+    ├── README.md
     ├── Spring
     │   ├── __init__.py
     │   ├── Commands
     │   │   ├── __init__.py
+    │   │   ├── __pycache__
     │   │   ├── CreateCompressionSpring.py
     │   │   ├── CreateExtensionSpring.py
     │   │   ├── CreateTorsionSpring.py
     │   │   └── DisplaySpringInfo.py
     │   ├── Dialogs
     │   │   ├── __init__.py
+    │   │   ├── __pycache__
     │   │   └── SpringInfoDialog.py
     │   ├── Features
     │   │   ├── __init__.py
+    │   │   ├── __pycache__
     │   │   ├── Compression
     │   │   │   ├── __init__.py
-    │   │   │   └── Spring.py
+    │   │   │   ├── __pycache__
+    │   │   │   ├── EndType.json
+    │   │   │   ├── LifeCategory.json
+    │   │   │   ├── PropCalcMethod.json
+    │   │   │   ├── Spring.py
+    │   │   │   └── Utils.py
     │   │   ├── Extension
     │   │   │   ├── __init__.py
-    │   │   │   └── Spring.py
+    │   │   │   ├── __pycache__
+    │   │   │   ├── EndType.json
+    │   │   │   ├── LifeCategory.json
+    │   │   │   ├── PropCalcMethod.json
+    │   │   │   ├── Spring.py
+    │   │   │   └── Utils.py
     │   │   ├── Torsion
     │   │   │   ├── __init__.py
-    │   │   │   └── Spring.py
+    │   │   │   ├── __pycache__
+    │   │   │   ├── EndType.json
+    │   │   │   ├── LifeCategory.json
+    │   │   │   ├── PropCalcMethod.json
+    │   │   │   ├── Spring.py
+    │   │   │   └── Utils.py
     │   │   ├── Utils.py
     │   │   └── ViewProviderSpring.py
     │   ├── Preferences
     │   │   ├── __init__.py
+    │   │   ├── __pycache__
     │   │   └── SpringPreferencePage.py
     │   └── Resources
     │       └── icons
@@ -104,10 +128,6 @@ the supplied default if a setting has not been stored yet.
     │           ├── SpringInfo.svg
     │           ├── torsion.svg
     │           └── workbench.svg
-    ├── Init.py
-    ├── InitGui.py
-    ├── LICENSE
-    ├── README.md
     └── Tests
         └── test_Springs.py
 
