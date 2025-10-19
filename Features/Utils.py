@@ -133,6 +133,7 @@ def apply_enum_property_values(obj, enum_type: str, name: str, selection=None) -
     selection: Optional explicit selection value. If omitted the current property
         value from ``obj`` is used.
     """
+    print(f"[apply_enum_property_values] obj={obj} enum_type={enum_type} name={name} selection={selection}")
 
     header, rows, _mtime = load_enum_table(enum_type, name)
     if len(header) <= 1:
@@ -144,11 +145,15 @@ def apply_enum_property_values(obj, enum_type: str, name: str, selection=None) -
 
     for row in rows:
         if not row:
+            print(f"[apply_enum_property_values] not row continue")
             continue
         if row[0] != selected:
+            print(f"[apply_enum_property_values] row[0] != selected continue")
             continue
         for key, value in zip(header[1:], row[1:]):
+            print(f"[apply_enum_property_values] key={key} value={value} hasattr()={hasattr(obj, key)}")
             if hasattr(obj, key):
+                print(f"[apply_enum_property_values] setattr obj={obj} key={key} value={value}")
                 setattr(obj, key, value)
         break
 
@@ -179,8 +184,10 @@ def reload_enum(fp, type_name, name):
 
     # Restore previous selection if still valid
     if current in enum_values:
+        print(f"[reload_enum] setattr fp={fp} name={name} current={current}")
         setattr(fp, name, current)
     else:
+        print(f"[reload_enum] setattr fp={fp} name={name} enum_values[0]={enum_values[0]}")
         setattr(fp, name, enum_values[0])
 
     FreeCAD.Console.PrintMessage(f"[reload_enum] {name} reloaded with {len(enum_values)} enum_values={enum_values}\n")

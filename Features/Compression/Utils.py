@@ -125,11 +125,11 @@ def update_globals(obj) -> None:
             end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
             match end_type_index:
                 case 1 | 2 | 3 | 4 | 5 | 6: 
-                    obj.setEditorMode("CoilsInactive", 0) # Visible R/W
-                    obj.setEditorMode("AddCoilsAtSolid", 0) # Visible R/W
-                case _: # user specified
                     obj.setEditorMode("CoilsInactive", 1) # Visible R/O
                     obj.setEditorMode("AddCoilsAtSolid", 1) # Visible R/O
+                case _: # user specified
+                    obj.setEditorMode("CoilsInactive", 0) # Visible R/W
+                    obj.setEditorMode("AddCoilsAtSolid", 0) # Visible R/W
             obj.setEditorMode("MaterialType", 0) # Visible R/W
             obj.setEditorMode("ASTMFedSpec", 0) # Visible R/W
             obj.setEditorMode("Process", 0) # Visible R/W

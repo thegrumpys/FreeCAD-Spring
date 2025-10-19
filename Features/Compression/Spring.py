@@ -43,15 +43,11 @@ class CompressionSpring:
 
         CoreUtils.add_property(obj, "SpringType", "Compression", "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "PropCalcMethod", None, "App::PropertyEnumeration", "Global")
-        CoreUtils.reload_enum(obj, "Compression", "PropCalcMethod")
-        CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod")
         CoreUtils.add_property(obj, "MaterialType", SpringUtils.MUSIC_WIRE_MATERIAL_TYPE, "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "ASTMFedSpec", SpringUtils.MUSIC_WIRE_ASTM_FS + "/" + SpringUtils.MUSIC_WIRE_FEDSPEC, "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "Process", "Cold Coiled", "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "MaterialFile", "", "App::PropertyString", "Global", 2) # hidden
         CoreUtils.add_property(obj, "LifeCategory", None, "App::PropertyEnumeration", "Global")
-        CoreUtils.reload_enum(obj, "Compression", "LifeCategory")
-        CoreUtils.apply_enum_property_values(obj, "Compression", "LifeCategory")
         CoreUtils.add_property(obj, "Density", SpringUtils.MUSIC_WIRE_DENSITY, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "TorsionModulus", SpringUtils.MUSIC_WIRE_SHEAR_MODULUS, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "HotFactorKh", SpringUtils.MUSIC_WIRE_HOT_FACTOR_KH, "App::PropertyFloat", "Global", 1)
@@ -61,8 +57,6 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "StressLimitEndurance", 0.0, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "StressLimitStatic", 0.0, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "EndType", None, "App::PropertyEnumeration", "Global")
-        CoreUtils.reload_enum(obj, "Compression", "EndType")
-        CoreUtils.apply_enum_property_values(obj, "Compression", "EndType")
         CoreUtils.add_property(obj, "CoilsInactive", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "AddCoilsAtSolid", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "CatalogName", "", "App::PropertyString", "Global", 2) # hidden
@@ -72,6 +66,14 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "const_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
         CoreUtils.add_property(obj, "slope_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
         CoreUtils.add_property(obj, "tensile_010", 1000.0 * SpringUtils.MUSIC_WIRE_T010, "App::PropertyFloat", "Global", 2) # hidden
+
+        // Changing a primary property could set one or more secondary properties
+        CoreUtils.reload_enum(obj, "Compression", "PropCalcMethod")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod")
+        CoreUtils.reload_enum(obj, "Compression", "LifeCategory")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "LifeCategory")
+        CoreUtils.reload_enum(obj, "Compression", "EndType")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "EndType")
 
         obj.Proxy = self
         ViewProviderSpring(obj.ViewObject)
