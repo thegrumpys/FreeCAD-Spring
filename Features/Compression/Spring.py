@@ -67,7 +67,7 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "slope_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
         CoreUtils.add_property(obj, "tensile_010", 1000.0 * SpringUtils.MUSIC_WIRE_T010, "App::PropertyFloat", "Global", 2) # hidden
 
-        // Changing a primary property could set one or more secondary properties
+        # Changing a primary property could set one or more secondary properties
         CoreUtils.reload_enum(obj, "Compression", "PropCalcMethod")
         CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod")
         CoreUtils.reload_enum(obj, "Compression", "LifeCategory")
@@ -82,7 +82,21 @@ class CompressionSpring:
 
     def execute(self, obj):
         FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
-        obj.Shape = CoreUtils.helix_solid(obj.OutsideDiameterAtFree / 2.0, obj.Pitch, obj.LengthAtFree, obj.WireDiameter / 2.0)
+        radius = obj.OutsideDiameterAtFree / 2.0
+        wire_radius = obj.WireDiameter / 2.0
+        end_type_selection = getattr(obj, "EndType", None)
+        end_type = CoreUtils.enum_selection_value(end_type_selection)
+        end_type_index = SpringUtils.end_type_index(end_type_selection)
+        obj.Shape = SpringUtils.spring_solid(
+            end_type_index,
+            end_type,
+            radius,
+            obj.Pitch,
+            obj.LengthAtFree,
+            wire_radius,
+            getattr(obj, "CoilsTotal", None),
+            getattr(obj, "CoilsInactive", None),
+        )
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
 
