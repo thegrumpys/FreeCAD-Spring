@@ -44,12 +44,14 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "SpringType", "Compression", "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "PropCalcMethod", None, "App::PropertyEnumeration", "Global")
         CoreUtils.reload_enum(obj, "Compression", "PropCalcMethod")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod")
         CoreUtils.add_property(obj, "MaterialType", SpringUtils.MUSIC_WIRE_MATERIAL_TYPE, "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "ASTMFedSpec", SpringUtils.MUSIC_WIRE_ASTM_FS + "/" + SpringUtils.MUSIC_WIRE_FEDSPEC, "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "Process", "Cold Coiled", "App::PropertyString", "Global")
         CoreUtils.add_property(obj, "MaterialFile", "", "App::PropertyString", "Global", 2) # hidden
         CoreUtils.add_property(obj, "LifeCategory", None, "App::PropertyEnumeration", "Global")
         CoreUtils.reload_enum(obj, "Compression", "LifeCategory")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "LifeCategory")
         CoreUtils.add_property(obj, "Density", SpringUtils.MUSIC_WIRE_DENSITY, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "TorsionModulus", SpringUtils.MUSIC_WIRE_SHEAR_MODULUS, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "HotFactorKh", SpringUtils.MUSIC_WIRE_HOT_FACTOR_KH, "App::PropertyFloat", "Global", 1)
@@ -60,6 +62,7 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "StressLimitStatic", 0.0, "App::PropertyFloat", "Global", 1)
         CoreUtils.add_property(obj, "EndType", None, "App::PropertyEnumeration", "Global")
         CoreUtils.reload_enum(obj, "Compression", "EndType")
+        CoreUtils.apply_enum_property_values(obj, "Compression", "EndType")
         CoreUtils.add_property(obj, "CoilsInactive", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "AddCoilsAtSolid", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "CatalogName", "", "App::PropertyString", "Global", 2) # hidden
@@ -84,21 +87,18 @@ class CompressionSpring:
     def onChanged(self, obj, prop):
         FreeCAD.Console.PrintMessage(f"[CompressionSpring.onChanged] self={self} obj={obj}\n")
         if prop == "PropCalcMethod":
-            selection = getattr(obj, "PropCalcMethod", None)
-            if isinstance(selection, (list, tuple)):
-                selection = selection[0] if selection else None
+            selection = CoreUtils.enum_selection_value(getattr(obj, "PropCalcMethod", None))
+            CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod", selection)
             SpringUtils.update_globals(obj)
             SpringUtils.update_properties(obj)
         if prop == "LifeCategory":
-            selection = getattr(obj, "LifeCategory", None)
-            if isinstance(selection, (list, tuple)):
-                selection = selection[0] if selection else None
+            selection = CoreUtils.enum_selection_value(getattr(obj, "LifeCategory", None))
+            CoreUtils.apply_enum_property_values(obj, "Compression", "LifeCategory", selection)
             SpringUtils.update_globals(obj)
             SpringUtils.update_properties(obj)
         if prop == "EndType":
-            selection = getattr(obj, "EndType", None)
-            if isinstance(selection, (list, tuple)):
-                selection = selection[0] if selection else None
+            selection = CoreUtils.enum_selection_value(getattr(obj, "EndType", None))
+            CoreUtils.apply_enum_property_values(obj, "Compression", "EndType", selection)
             SpringUtils.update_globals(obj)
             SpringUtils.update_properties(obj)
 

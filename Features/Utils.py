@@ -76,12 +76,12 @@ def spring_solid_length(wire_diameter, coils):
         
 _ENUM_CACHE = {}  # { name: (header, rows, mtime) }
 
-def load_enum_table(type, enum_name):
+def load_enum_table(type_name, enum_name):
     """
     Load <enum_name>.json once and return (header, rows).
     Cached after first load for performance.
     """
-    FreeCAD.Console.PrintMessage(f"[load_enum_table] type={type} enum_name={enum_name}\n")
+    FreeCAD.Console.PrintMessage(f"[load_enum_table] type_name={type_name} enum_name={enum_name}\n")
     global _ENUM_CACHE
 
     # If cached, return immediately
@@ -91,7 +91,7 @@ def load_enum_table(type, enum_name):
 
     # Locate JSON relative to this script
     base_dir = os.path.dirname(__file__)
-    path = os.path.join(base_dir, f"./{type}/{enum_name}.json")
+    path = os.path.join(base_dir, f"./{type_name}/{enum_name}.json")
     path = os.path.abspath(path)
     mtime = os.path.getmtime(path) if os.path.exists(path) else 0
 
@@ -111,6 +111,47 @@ def load_enum_table(type, enum_name):
     print(f"[load_enum_table] header={header} rows={rows} mtime={mtime}")
     return header, rows, mtime
 
+
+def enum_selection_value(selection):
+    """Return the active enumeration value from a property selection."""
+
+    if isinstance(selection, (list, tuple)):
+        selection = selection[0] if selection else None
+    print(f"[enum_selection_value] selection={selection}")
+    return selection
+
+
+def apply_enum_property_values(obj, enum_type: str, name: str, selection=None) -> None:
+    """
+    Apply secondary column values from an enumeration table to the object.
+
+    Parameters
+    ----------
+    obj: FreeCAD object whose properties should be updated.
+    enum_type_name: Directory name containing the enum JSON file (e.g. "Compression").
+    name: Base name of the enum JSON file (e.g. "EndType").
+    selection: Optional explicit selection value. If omitted the current property
+        value from ``obj`` is used.
+    """
+
+    header, rows, _mtime = load_enum_table(enum_type, name)
+    if len(header) <= 1:
+        return  # no secondary columns
+
+    selected = enum_selection_value(selection if selection is not None else getattr(obj, name, None))
+    if selected is None:
+        return
+
+    for row in rows:
+        if not row:
+            continue
+        if row[0] != selected:
+            continue
+        for key, value in zip(header[1:], row[1:]):
+            if hasattr(obj, key):
+                setattr(obj, key, value)
+        break
+
 def clear_enum_cache():
     """Clear all cached enumeration data (for dev/debug use)."""
     FreeCAD.Console.PrintMessage(f"[clear_enum_cache]"+"\n")
@@ -118,14 +159,14 @@ def clear_enum_cache():
     _ENUM_CACHE.clear()
     FreeCAD.Console.PrintMessage(f"[clear_enum_cache] Cache cleared\n")
     
-def reload_enum(fp, type, name):
+def reload_enum(fp, type_name, name):
     """
     Rebuild a single enumeration property from its JSON definition.
     Keeps the current value if it is still valid.
     """
-    FreeCAD.Console.PrintMessage(f"[reload_enum] fp={fp} type={type} name={name}\n")
+    FreeCAD.Console.PrintMessage(f"[reload_enum] fp={fp} type_name={type_name} name={name}\n")
 
-    _header, rows, _mtime = load_enum_table(type, name)
+    _header, rows, _mtime = load_enum_table(type_name, name)
     if not rows:
         FreeCAD.Console.PrintWarning(f"[reload_enum] No data for {name}\n")
         return
