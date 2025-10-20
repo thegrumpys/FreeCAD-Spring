@@ -52,8 +52,11 @@ def end_type_index(end_type) -> int:
 
 
 def _pipe_from_wire(wire: Part.Wire, wire_radius: float, fallback_height: float) -> Part.Shape:
+    print(f"[_pipe_from_wire] wire={wire} wire_radius={wire_radius} fallback_height={fallback_height}")
     if wire is None or not wire.Edges:
-        return Part.makeCylinder(wire_radius, max(fallback_height, _EPSILON))
+        sweep = Part.makeCylinder(wire_radius, max(fallback_height, _EPSILON))
+        print(f"[_pipe_from_wire] sweep={sweep}")
+        return sweep
 
     helix_edge = wire.Edges[0]
     u0 = helix_edge.FirstParameter
@@ -73,11 +76,14 @@ def _pipe_from_wire(wire: Part.Wire, wire_radius: float, fallback_height: float)
     except Exception:
         sweep = Part.makeCylinder(wire_radius, max(fallback_height, _EPSILON))
 
+    print(f"[_pipe_from_wire] sweep={sweep}")
     return sweep
 
 
 def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> Optional[Part.Wire]:
+    print(f"[_wire_from_segments] radius={radius} segments={segments}")
     if not segments:
+        print(f"[_wire_from_segments] result=None")
         return None
 
     edges = []
@@ -109,9 +115,12 @@ def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> O
         z_offset += height
 
     if not edges:
+        print(f"[_wire_from_segments] result=None")
         return None
 
-    return Part.Wire(edges)
+    result = Part.Wire(edges)
+    print(f"[_wire_from_segments] result={result}")
+    return result
 
 
 def spring_solid(
@@ -124,6 +133,7 @@ def spring_solid(
     inactive_coils: Optional[float] = None,
 ) -> Part.Shape:
     """Create a spring solid shaped according to the requested end type."""
+    print(f"[spring_solid] end_type_index={end_type_index} radius={radius} pitch={pitch} height={height} wire_radius={wire_radius} coils_total={coils_total} inactive_coils={inactive_coils}")
 
     end_type_index = int(end_type_index or 0)
     safe_height = max(float(height), 0.0)
@@ -181,35 +191,46 @@ def spring_solid(
     if end_type_index in {2, 4} and wire_radius > 0.0:
         solid = _apply_ground_planes(solid, wire_radius)
 
+    print(f"[spring_solid] solid={solid}")
     return solid
 
 
 def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
     """Trim the ends of a spring using planes offset by half the wire diameter."""
+    print(f"[_apply_ground_planes] shape={shape} wire_radius={wire_radius}")
 
     try:
         bbox = shape.BoundBox
     except Exception:
+        print(f"[_apply_ground_planes] shape={shape}")
         return shape
 
     if bbox is None or not bbox.isValid():
+        print(f"[_apply_ground_planes] shape={shape}")
         return shape
+    print(f"[_apply_ground_planes] bbox.XMin={bbox.XMin} bbox.XMax={bbox.XMax} bbox.XLength={bbox.XLength}")
+    print(f"[_apply_ground_planes] bbox.YMin={bbox.YMin} bbox.YMax={bbox.YMax} bbox.YLength={bbox.YLength}")
+    print(f"[_apply_ground_planes] bbox.ZMin={bbox.ZMin} bbox.ZMax={bbox.ZMax} bbox.ZLength={bbox.ZLength}")
 
-    z_min_cut = bbox.ZMin + wire_radius
-    z_max_cut = bbox.ZMax - wire_radius
+    z_min_cut = bbox.ZMin + 2.0 * wire_radius - _EPSILON
+    z_max_cut = bbox.ZMax - 2.0 * wire_radius + _EPSILON
     if z_max_cut <= z_min_cut:
+        print(f"[_apply_ground_planes] shape={shape}")
         return shape
+    print(f"[_apply_ground_planes] z_min_cut={z_min_cut} z_max_cut={z_max_cut}")
 
     margin = max(wire_radius, _EPSILON)
     x_size = bbox.XLength + 2.0 * margin
     y_size = bbox.YLength + 2.0 * margin
     base_x = bbox.XMin - margin
     base_y = bbox.YMin - margin
+    print(f"[_apply_ground_planes] margin={margin} x_size={x_size} y_size={y_size} base_x={base_x} base_y={base_y}")
 
     bottom_start = bbox.ZMin - margin
     bottom_thickness = max(z_min_cut - bottom_start, _EPSILON)
     top_start = z_max_cut
     top_thickness = max(bbox.ZMax + margin - top_start, _EPSILON)
+    print(f"[_apply_ground_planes] bottom_start={bottom_start} bottom_thickness={bottom_thickness} top_start={top_start} top_thickness={top_thickness}")
 
     try:
         bottom_box = Part.makeBox(
@@ -228,8 +249,10 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
         grounded = shape.cut(bottom_box)
         grounded = grounded.cut(top_box)
     except Exception:
+        print(f"[_apply_ground_planes] shape={shape}")
         return shape
 
+    print(f"[_apply_ground_planes] grounded={grounded}")
     return grounded
 
 def _as_float(value, default):
