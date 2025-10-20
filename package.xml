@@ -29,7 +29,7 @@
       <tag>Compression</tag>
       <tag>Extension</tag>
       <tag>Torsion</tag>
-      <icon>Spring/Resources/icons/workbench.svg</icon>
+      <icon>Resources/icons/workbench.svg</icon>
       <classname>SpringWorkbench</classname>
       <subdirectory>.</subdirectory>
     </workbench>

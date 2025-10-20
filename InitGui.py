@@ -8,7 +8,7 @@ except NameError:
     import inspect
     MODULE_PATH = os.path.dirname(inspect.getfile(inspect.currentframe()))
 
-Gui.addIconPath(os.path.join(MODULE_PATH, "Spring", "Resources", "icons"))
+Gui.addIconPath(os.path.join(MODULE_PATH, "Resources", "icons"))
 
 class SpringWorkbench(Gui.Workbench):
     MenuText = "Spring"
@@ -17,13 +17,13 @@ class SpringWorkbench(Gui.Workbench):
 
     def Initialize(self):
         # Import command modules *here*, so they're always defined when activating
-        from Spring.Commands import (
+        from Commands import (
             CreateCompressionSpring,
             CreateExtensionSpring,
             CreateTorsionSpring,
             DisplaySpringInfo,
         )
-        from Spring.Preferences.SpringPreferencePage import SpringPreferencePage
+        from Preferences.SpringPreferencePage import SpringPreferencePage
 
         # Register commands
         CreateCompressionSpring.register()

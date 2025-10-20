@@ -1,5 +1,5 @@
 import FreeCADGui as Gui
-from Spring.Features.Torsion import Spring as TorsionSpring
+from Features.Torsion import Spring as TorsionSpring
 
 class CreateTorsionSpring:
     """Command to create a parametric torsion spring"""
@@ -7,7 +7,7 @@ class CreateTorsionSpring:
     def GetResources(self):
         """Defines icon, tooltip, and menu text"""
         return {
-            "Pixmap": "torsion.svg",  # must exist in Spring/Resources/icons/
+            "Pixmap": "torsion.svg",  # must exist in Resources/icons/
             "MenuText": "Torsion Spring",
             "ToolTip": "Create a parametric torsion spring",
         }

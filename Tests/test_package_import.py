@@ -1,4 +1,4 @@
-"""Tests for cross-platform import bootstrap."""
+"""Tests ensuring the workbench entry points are importable."""
 
 import importlib.util
 import pathlib
@@ -11,13 +11,11 @@ if str(ADDON_ROOT) not in sys.path:
 
 
 def test_init_modules_are_discoverable():
-    spec_init = importlib.util.find_spec("Spring.Init")
-    spec_init_gui = importlib.util.find_spec("Spring.InitGui")
-    assert spec_init is not None, "Spring.Init should be discoverable"
-    assert spec_init_gui is not None, "Spring.InitGui should be discoverable"
+    spec_init = importlib.util.find_spec("Init")
+    spec_init_gui = importlib.util.find_spec("InitGui")
+    assert spec_init is not None, "Init module should be discoverable"
+    assert spec_init_gui is not None, "InitGui module should be discoverable"
 
-    # On all supported OSes the loader should resolve the entry points to the
-    # add-on root (a sibling of the Spring package directory).
     addon_root = ADDON_ROOT
     assert pathlib.Path(spec_init.origin).resolve().parent == addon_root
     assert pathlib.Path(spec_init_gui.origin).resolve().parent == addon_root

@@ -2,7 +2,7 @@ import FreeCAD, FreeCADGui
 from PySide2 import QtWidgets
 import csv, tempfile, os, datetime
 
-from Spring.Features import Utils
+from Features import Utils
 
 class SpringInfoDialog(QtWidgets.QDialog):
     def __init__(self, objs):

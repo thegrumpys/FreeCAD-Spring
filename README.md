@@ -2,7 +2,7 @@
 
 Design and analyze **compression**, **extension**, and **torsion** springs directly inside FreeCAD.
 
-![Spring Workbench Toolbar](Spring/Resources/icons/workbench.svg)
+![Spring Workbench Toolbar](Resources/icons/workbench.svg)
 
 ---
 
@@ -54,7 +54,7 @@ weights, and UI toggles inside FreeCAD's parameter system. Modules can query
 these values through helpers in ``Features.Utils``:
 
 ```python
-from Spring.Features import Utils
+from Features import Utils
 
 max_iterations = Utils.preference_int("maxit", 600)
 objective_minimum = Utils.preference_float("objmin", 1.0e-5)
@@ -69,67 +69,59 @@ the supplied default if a setting has not been stored yet.
 ## 📁 Repository Structure (via `tree -I '__pycache__'`)
 
     FreeCAD-Spring/
+    ├── Commands
+    │   ├── __init__.py
+    │   ├── CreateCompressionSpring.py
+    │   ├── CreateExtensionSpring.py
+    │   ├── CreateTorsionSpring.py
+    │   └── DisplaySpringInfo.py
+    ├── Dialogs
+    │   ├── __init__.py
+    │   └── SpringInfoDialog.py
+    ├── Features
+    │   ├── __init__.py
+    │   ├── Compression
+    │   │   ├── __init__.py
+    │   │   ├── EndType.json
+    │   │   ├── LifeCategory.json
+    │   │   ├── PropCalcMethod.json
+    │   │   ├── Spring.py
+    │   │   └── Utils.py
+    │   ├── Extension
+    │   │   ├── __init__.py
+    │   │   ├── EndType.json
+    │   │   ├── LifeCategory.json
+    │   │   ├── PropCalcMethod.json
+    │   │   ├── Spring.py
+    │   │   └── Utils.py
+    │   ├── Torsion
+    │   │   ├── __init__.py
+    │   │   ├── EndType.json
+    │   │   ├── LifeCategory.json
+    │   │   ├── PropCalcMethod.json
+    │   │   ├── Spring.py
+    │   │   └── Utils.py
+    │   ├── Utils.py
+    │   └── ViewProviderSpring.py
     ├── Init.py
     ├── InitGui.py
     ├── LICENSE
-    ├── package.xml
-    ├── README.md
-    ├── Spring
+    ├── Preferences
     │   ├── __init__.py
-    │   ├── Commands
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__
-    │   │   ├── CreateCompressionSpring.py
-    │   │   ├── CreateExtensionSpring.py
-    │   │   ├── CreateTorsionSpring.py
-    │   │   └── DisplaySpringInfo.py
-    │   ├── Dialogs
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__
-    │   │   └── SpringInfoDialog.py
-    │   ├── Features
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__
-    │   │   ├── Compression
-    │   │   │   ├── __init__.py
-    │   │   │   ├── __pycache__
-    │   │   │   ├── EndType.json
-    │   │   │   ├── LifeCategory.json
-    │   │   │   ├── PropCalcMethod.json
-    │   │   │   ├── Spring.py
-    │   │   │   └── Utils.py
-    │   │   ├── Extension
-    │   │   │   ├── __init__.py
-    │   │   │   ├── __pycache__
-    │   │   │   ├── EndType.json
-    │   │   │   ├── LifeCategory.json
-    │   │   │   ├── PropCalcMethod.json
-    │   │   │   ├── Spring.py
-    │   │   │   └── Utils.py
-    │   │   ├── Torsion
-    │   │   │   ├── __init__.py
-    │   │   │   ├── __pycache__
-    │   │   │   ├── EndType.json
-    │   │   │   ├── LifeCategory.json
-    │   │   │   ├── PropCalcMethod.json
-    │   │   │   ├── Spring.py
-    │   │   │   └── Utils.py
-    │   │   ├── Utils.py
-    │   │   └── ViewProviderSpring.py
-    │   ├── Preferences
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__
-    │   │   └── SpringPreferencePage.py
-    │   └── Resources
-    │       └── icons
-    │           ├── compression.svg
-    │           ├── extension.svg
-    │           ├── preferences-springs.svg
-    │           ├── SpringInfo.svg
-    │           ├── torsion.svg
-    │           └── workbench.svg
-    └── Tests
-        └── test_Springs.py
+    │   └── SpringPreferencePage.py
+    ├── README.md
+    ├── Resources
+    │   └── icons
+    │       ├── compression.svg
+    │       ├── extension.svg
+    │       ├── preferences-springs.svg
+    │       ├── SpringInfo.svg
+    │       ├── torsion.svg
+    │       └── workbench.svg
+    ├── Tests
+    │   ├── test_Springs.py
+    │   └── test_package_import.py
+    └── package.xml
 
 ---
 
@@ -140,7 +132,7 @@ application modules are available to the interpreter:
 
 ```bash
 /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd \
-  ~/Library/Application\ Support/FreeCAD/Mod/Spring/Tests/test_Spring.py
+  ~/Library/Application\ Support/FreeCAD/Mod/Spring/Tests/test_Springs.py
 ```
 
 ---

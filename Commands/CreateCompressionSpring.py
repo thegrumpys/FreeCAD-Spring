@@ -1,5 +1,5 @@
 import FreeCADGui as Gui
-from Spring.Features.Compression import Spring as CompressionSpring
+from Features.Compression import Spring as CompressionSpring
 
 class CreateCompressionSpring:
     """Command to create a parametric compression spring"""
@@ -7,7 +7,7 @@ class CreateCompressionSpring:
     def GetResources(self):
         """Defines icon, tooltip, and menu text"""
         return {
-            "Pixmap": "compression.svg",  # must exist in Spring/Resources/icons/
+            "Pixmap": "compression.svg",  # must exist in Resources/icons/
             "MenuText": "Compression Spring",
             "ToolTip": "Create a parametric compression spring",
         }

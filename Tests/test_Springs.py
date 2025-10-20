@@ -1,12 +1,12 @@
 import FreeCAD, Part, unittest, math, os, tempfile
 from types import SimpleNamespace
 
-from Spring.Features.Compression import Spring as CompressionSpring
-from Spring.Features.Compression import Utils as CompressionUtils
-from Spring.Features.Extension import Spring as ExtensionSpring
-from Spring.Features.Extension import Utils as ExtensionUtils
-from Spring.Features.Torsion import Spring as TorsionSpring
-from Spring.Features.Torsion import Utils as TorsionUtils
+from Features.Compression import Spring as CompressionSpring
+from Features.Compression import Utils as CompressionUtils
+from Features.Extension import Spring as ExtensionSpring
+from Features.Extension import Utils as ExtensionUtils
+from Features.Torsion import Spring as TorsionSpring
+from Features.Torsion import Utils as TorsionUtils
 
 def _expected_compression_rate(outer_diameter, wire_diameter, coils):
     obj = SimpleNamespace(
@@ -44,7 +44,7 @@ def _expected_torsion_rate(outer_diameter, wire_diameter, coils):
     return obj.Rate
 
 
-print("✅ test_Spring.py started")
+print("✅ test_Springs.py started")
 
 # -----------------------------------------------------------------------------
 # Utility helpers

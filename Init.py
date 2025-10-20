@@ -1,4 +1,4 @@
-# Spring/Init.py
+# Init.py
 
 __title__ = "Spring Workbench"
 __author__ = "thegrumpys"

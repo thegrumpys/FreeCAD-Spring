@@ -1,5 +1,5 @@
 import FreeCADGui as Gui
-from Spring.Dialogs.SpringInfoDialog import SpringInfoDialog
+from Dialogs.SpringInfoDialog import SpringInfoDialog
 
 class DisplaySpringInfo:
     def GetResources(self):
