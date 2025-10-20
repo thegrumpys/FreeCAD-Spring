@@ -7,7 +7,7 @@ from . import Utils as SpringUtils
 
 class CompressionSpring:
     def __init__(self, obj):
-        FreeCAD.Console.PrintMessage(f"[CompressionSpring.__init__] self={self} obj={obj}\n")
+#        FreeCAD.Console.PrintMessage(f"[CompressionSpring.__init__] self={self} obj={obj}\n")
         CoreUtils.add_property(obj, "OutsideDiameterAtFree", 28, "App::PropertyFloat", "Independent")
         CoreUtils.add_property(obj, "WireDiameter", 2.8, "App::PropertyFloat", "Independent")
         CoreUtils.add_property(obj, "LengthAtFree", 80.0, "App::PropertyFloat", "Independent")
@@ -81,15 +81,13 @@ class CompressionSpring:
         SpringUtils.update_properties(obj)
 
     def execute(self, obj):
-        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
+#        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
         radius = obj.OutsideDiameterAtFree / 2.0
         wire_radius = obj.WireDiameter / 2.0
         end_type_selection = getattr(obj, "EndType", None)
-        end_type = CoreUtils.enum_selection_value(end_type_selection)
         end_type_index = SpringUtils.end_type_index(end_type_selection)
         obj.Shape = SpringUtils.spring_solid(
             end_type_index,
-            end_type,
             radius,
             obj.Pitch,
             obj.LengthAtFree,
@@ -101,7 +99,7 @@ class CompressionSpring:
         SpringUtils.update_properties(obj)
 
     def onChanged(self, obj, prop):
-        FreeCAD.Console.PrintMessage(f"[CompressionSpring.onChanged] self={self} obj={obj}\n")
+#        FreeCAD.Console.PrintMessage(f"[CompressionSpring.onChanged] self={self} obj={obj} prop={prop}\n")
         if prop == "PropCalcMethod":
             selection = CoreUtils.enum_selection_value(getattr(obj, "PropCalcMethod", None))
             CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod", selection)
@@ -119,7 +117,7 @@ class CompressionSpring:
             SpringUtils.update_properties(obj)
 
 def make():
-    FreeCAD.Console.PrintMessage(f"[make]\n")
+#    FreeCAD.Console.PrintMessage(f"[make]\n")
     doc = FreeCAD.ActiveDocument
     if doc is None:
         return None

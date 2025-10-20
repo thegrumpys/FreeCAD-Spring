@@ -116,7 +116,6 @@ def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> O
 
 def spring_solid(
     end_type_index: Optional[int],
-    end_type: Optional[str],
     radius: float,
     pitch: float,
     height: float,
@@ -245,40 +244,40 @@ def _enum_value(selection):
 
     if isinstance(selection, (list, tuple)):
         return selection[0] if selection else None
-    print(f"[_enum_value] selection={selection}")
+#    print(f"[_enum_value] selection={selection}")
     return selection
 
 def _enum_index(enum_type: str, name: str, selection) -> int:
     """Return the 1-based index of an enumeration selection."""
 
     value = _enum_value(selection)
-    print(f"[_enum_index] value={value}");
+#    print(f"[_enum_index] value={value}");
     if value is None:
-        print(f"[_enum_index] return 0");
+#        print(f"[_enum_index] return 0");
         return 0
 
     try:
         _header, rows, _mtime = CoreUtils.load_enum_table(enum_type, name)
-        print(f"[_enum_index] _header={_header} rows={rows} _mtime={_mtime}");
+#        print(f"[_enum_index] _header={_header} rows={rows} _mtime={_mtime}");
     except Exception:
-        print(f"[_enum_index] return 0");
+#        print(f"[_enum_index] return 0");
         return 0
 
     options = [row[0] for row in rows]
-    print(f"_enum_index options={options}");
+#    print(f"_enum_index options={options}");
     try:
-        print(f"[_enum_index] options.index(value)+1={options.index(value)+1}");
+#        print(f"[_enum_index] options.index(value)+1={options.index(value)+1}");
         return options.index(value) + 1
     except ValueError:
-        print(f"[_enum_index] return 0");
+#        print(f"[_enum_index] return 0");
         return 0
 
 def update_globals(obj) -> None:
     """Update global properties based on the object's global properties."""
-    
-    print(f"[update_globals] obj.PropCalcMethod={obj.PropCalcMethod}");
-    print(f"[update_globals] obj.LifeCategory={obj.LifeCategory}");
-    print(f"[update_globals] obj.EndType={obj.EndType}");
+#    
+#    print(f"[update_globals] obj.PropCalcMethod={obj.PropCalcMethod}");
+#    print(f"[update_globals] obj.LifeCategory={obj.LifeCategory}");
+#    print(f"[update_globals] obj.EndType={obj.EndType}");
 
     prop_calc_method_index = _enum_index("Compression", "PropCalcMethod", getattr(obj, "PropCalcMethod", None))
     match prop_calc_method_index:
@@ -294,7 +293,7 @@ def update_globals(obj) -> None:
             obj.tensile_010 =  1000 * MUSIC_WIRE_T010
             tensile_400 = 1000 * MUSIC_WIRE_T400
             life_category_index = _enum_index("Compression", "LifeCategory", getattr(obj, "LifeCategory", None))
-            print(f"[update_globals] life_category_index={life_category_index}")
+#            print(f"[update_globals] life_category_index={life_category_index}")
             match life_category_index:
                 case 1 | 5:
                     obj.PercentTensileEndurance = MUSIC_WIRE_PTE1
@@ -417,7 +416,7 @@ def update_properties(obj) -> None:
     ks = kc + 0.615 / obj.SpringIndex
     obj.CoilsActive = obj.CoilsTotal - obj.CoilsInactive
     end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
-    print(f"[update_properties] end_type_index={end_type_index}")
+#    print(f"[update_properties] end_type_index={end_type_index}")
     match end_type_index:
         case 1: # Open
             obj.Pitch = (obj.LengthAtFree - obj.WireDiameter) / obj.CoilsActive
@@ -448,7 +447,7 @@ def update_properties(obj) -> None:
     obj.StressAtDeflection2 = s_f * obj.ForceAtDeflection2
     obj.StressAtSolid = s_f * obj.ForceAtSolid
     prop_calc_method_index = _enum_index("Compression", "PropCalcMethod", getattr(obj, "PropCalcMethod", None))
-    print(f"[update_properties] prop_calc_method_index={prop_calc_method_index}")
+#    print(f"[update_properties] prop_calc_method_index={prop_calc_method_index}")
     if prop_calc_method_index == 1:
         obj.Tensile = obj.slope_term * (math.log10(obj.WireDiameter) - obj.const_term) + obj.tensile_010
     if prop_calc_method_index <= 2:
@@ -465,11 +464,11 @@ def update_properties(obj) -> None:
     stress_average = (obj.StressAtDeflection1 + obj.StressAtDeflection2) / 2.0
     stress_range = (obj.StressAtDeflection2 - obj.StressAtDeflection1) / 2.0
     se2 = obj.StressLimitEndurance / 2.0
-    print(f"[update_properties] kc={kc}")
-    print(f"[update_properties] stress_average={stress_average}")
-    print(f"[update_properties] stress_range={stress_range}")
-    print(f"[update_properties] se2={se2}")
-    print(f"[update_properties] obj.StressLimitStatic={obj.StressLimitStatic}")
+#    print(f"[update_properties] kc={kc}")
+#    print(f"[update_properties] stress_average={stress_average}")
+#    print(f"[update_properties] stress_range={stress_range}")
+#    print(f"[update_properties] se2={se2}")
+#    print(f"[update_properties] obj.StressLimitStatic={obj.StressLimitStatic}")
     obj.FactorOfSafetyAtCycleLife =  obj.StressLimitStatic / (kc * stress_range * (obj.StressLimitStatic - se2) / se2 + stress_average)
     if prop_calc_method_index == 1: # and obj.Material_Type != 0
 #        obj.CycleLife = cyclelife_calculation(obj.MaterialType, obj.LifeCategory, 1, obj.Tensile, obj.StressAtDeflection1, obj.StressAtDeflection2)
@@ -480,7 +479,7 @@ def update_properties(obj) -> None:
     sq2 = obj.CoilsTotal * math.pi * obj.MeanDiameterAtFree
     wire_len_t = math.sqrt(sq1 * sq1 + sq2 * sq2)
     end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
-    print(f"[update_properties] end_type_index={end_type_index}")
+#    print(f"[update_properties] end_type_index={end_type_index}")
     if end_type_index == 5: # Tapered_C&G
         wire_len_t = wire_len_t - 3.926 * obj.WireDiameter
     obj.Weight = obj.Density * (math.pi * obj.WireDiameter * obj.WireDiameter / 4.0) * wire_len_t

@@ -23,7 +23,7 @@ class ViewProviderSpring:
 
     def getDisplayValue(self, prop):
         """Return a formatted string for display in the Property Editor."""
-        FreeCAD.Console.PrintMessage(f"[ViewProviderSpring.getDisplayValue] prop={prop}\n")
+#        FreeCAD.Console.PrintMessage(f"[ViewProviderSpring.getDisplayValue] prop={prop}\n")
         if prop == "TorsionModulus" or prop == "ElasticModulus":
             val = getattr(self.Object, prop)
             return f"{val:.6e}"  # always scientific notation
