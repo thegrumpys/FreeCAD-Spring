@@ -51,10 +51,10 @@ def end_type_index(end_type) -> int:
     return _enum_index("Compression", "EndType", end_type)
 
 
-def _pipe_from_wire(wire: Part.Wire, wire_radius: float, fallback_height: float) -> Part.Shape:
+def _pipe_from_wire(wire: Part.Wire, radius: float, wire_radius: float, fallback_height: float) -> Part.Shape:
     print(f"[_pipe_from_wire] wire={wire} wire_radius={wire_radius} fallback_height={fallback_height}")
     if wire is None or not wire.Edges:
-        sweep = Part.makeCylinder(wire_radius, max(fallback_height, _EPSILON))
+        sweep = Part.makeCylinder(radius, max(fallback_height, _EPSILON))
         print(f"[_pipe_from_wire] sweep={sweep}")
         return sweep
 
@@ -74,7 +74,7 @@ def _pipe_from_wire(wire: Part.Wire, wire_radius: float, fallback_height: float)
         if sweep.ShapeType == "Shell":
             sweep = Part.makeSolid(sweep)
     except Exception:
-        sweep = Part.makeCylinder(wire_radius, max(fallback_height, _EPSILON))
+        sweep = Part.makeCylinder(radius, max(fallback_height, _EPSILON))
 
     print(f"[_pipe_from_wire] sweep={sweep}")
     return sweep
@@ -186,7 +186,7 @@ def spring_solid(
         segments.append((max(top_pitch, _EPSILON), top_height))
 
     wire = _wire_from_segments(radius, segments)
-    solid = _pipe_from_wire(wire, wire_radius, height)
+    solid = _pipe_from_wire(wire, radius, wire_radius, height)
 
     if end_type_index in {2, 4} and wire_radius > 0.0:
         solid = _apply_ground_planes(solid, wire_radius)
@@ -227,8 +227,8 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
     print(f"[_apply_ground_planes] margin={margin} x_size={x_size} y_size={y_size} base_x={base_x} base_y={base_y}")
 
     bottom_start = bbox.ZMin - margin
-    bottom_thickness = max(z_min_cut - bottom_start, _EPSILON)
-    top_start = z_max_cut
+    bottom_thickness = max(z_min_cut - bottom_start + wire_radius, _EPSILON)
+    top_start = z_max_cut - wire_radius
     top_thickness = max(bbox.ZMax + margin - top_start, _EPSILON)
     print(f"[_apply_ground_planes] bottom_start={bottom_start} bottom_thickness={bottom_thickness} top_start={top_start} top_thickness={top_thickness}")
 
@@ -245,9 +245,12 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
             top_thickness,
             FreeCAD.Vector(base_x, base_y, top_start),
         )
+        Part.show(bottom_box)
+        Part.show(top_box)
 
-        grounded = shape.cut(bottom_box)
-        grounded = grounded.cut(top_box)
+        grounded = shape;
+#        grounded = grounded.cut(bottom_box)
+#        grounded = grounded.cut(top_box)
     except Exception:
         print(f"[_apply_ground_planes] shape={shape}")
         return shape
