@@ -89,7 +89,6 @@ class CompressionSpring:
         obj.Shape = SpringUtils.spring_solid(
             end_type_index,
             radius,
-            obj.Pitch,
             obj.LengthAtFree,
             wire_radius,
             getattr(obj, "CoilsTotal", None),

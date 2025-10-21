@@ -40,9 +40,9 @@ class ExtensionSpring:
             0,
             end_type,
             radius,
-            obj.Pitch,
             obj.LengthAtFree,
             wire_radius,
+            getattr(obj, "CoilsTotal", None),
         )
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)

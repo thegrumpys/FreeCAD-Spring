@@ -128,67 +128,59 @@ def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> O
 def spring_solid(
     end_type_index: Optional[int],
     radius: float,
-    pitch: float,
     height: float,
     wire_radius: float,
     coils_total: Optional[float] = None,
     inactive_coils: Optional[float] = None,
 ) -> Part.Shape:
     """Create a spring solid shaped according to the requested end type."""
-    print(f"[spring_solid] end_type_index={end_type_index} radius={radius} pitch={pitch} height={height} wire_radius={wire_radius} coils_total={coils_total} inactive_coils={inactive_coils}")
+    print(f"[spring_solid] end_type_index={end_type_index} radius={radius} height={height} wire_radius={wire_radius} coils_total={coils_total} inactive_coils={inactive_coils}")
 
     end_type_index = int(end_type_index or 0)
     safe_height = max(float(height), 0.0)
 
-    if abs(pitch) > _EPSILON:
-        base_pitch = float(pitch)
-    else:
-        base_pitch = _EPSILON if pitch >= 0.0 else -_EPSILON
-    print(f"[spring_solid] end_type_index={end_type_index} safe_height={safe_height} base_pitch={base_pitch}")
-
-    pitch_magnitude = abs(base_pitch)
-    total_coils = _as_float(coils_total, safe_height / pitch_magnitude if pitch_magnitude > _EPSILON else 0.0)
+    wire_diameter = wire_radius * 2.0
+    default_pitch = wire_diameter if wire_diameter > _EPSILON else safe_height
+    total_coils = _as_float(coils_total, safe_height / max(default_pitch, _EPSILON))
     total_coils = max(total_coils, 0.0)
-    print(f"[spring_solid] pitch_magnitude={pitch_magnitude} total_coils={total_coils}")
+    print(f"[spring_solid] wire_diameter={wire_diameter} total_coils={total_coils}")
 
     inactive_total = max(_as_float(inactive_coils, 0.0), 0.0)
     if total_coils > 0.0:
         inactive_total = min(inactive_total, total_coils)
 
+    if wire_diameter > _EPSILON and safe_height > _EPSILON:
+        max_inactive = safe_height / wire_diameter
+        inactive_total = min(inactive_total, max_inactive)
+
     inactive_bottom = 0.0
     inactive_top = 0.0
     if inactive_total > 0.0:
-       inactive_bottom = inactive_total / 2.0
-       inactive_top = inactive_total - inactive_bottom
+        inactive_bottom = inactive_total / 2.0
+        inactive_top = inactive_total - inactive_bottom
     print(f"[spring_solid] inactive_total={inactive_total} inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
 
     scale = 1.0
     active_coils = max(total_coils - inactive_total, 0.0)
-    active_height = active_coils * pitch_magnitude
-    if active_height > safe_height and active_coils > 0.0:
-        scale = safe_height / active_height
-        active_height = safe_height
-        pitch_magnitude *= scale
-    print(f"[spring_solid] active_coils={active_coils} active_height={active_height} scale={scale} pitch_magnitude={pitch_magnitude}")
+    inactive_height = wire_diameter * inactive_total if wire_diameter > 0.0 else 0.0
+    active_height = max(safe_height - inactive_height, 0.0)
+    active_pitch = active_height / active_coils if active_coils > 0.0 else 0.0
+    print(f"[spring_solid] active_coils={active_coils} active_height={active_height} active_pitch={active_pitch} inactive_height={inactive_height}")
 
-    available_height = max(safe_height - active_height, 0.0)
-    inactive_pitch = available_height / inactive_total if inactive_total > _EPSILON else 0.0
-    bottom_height = inactive_pitch * inactive_bottom if inactive_bottom > 0.0 else 0.0
-    top_height = inactive_pitch * inactive_top if inactive_top > 0.0 else 0.0
-    print(f"[spring_solid] available_height={available_height} inactive_pitch={inactive_pitch} bottom_height={bottom_height} top_height={top_height}")
+    bottom_height = wire_diameter * inactive_bottom if inactive_bottom > 0.0 else 0.0
+    top_height = wire_diameter * inactive_top if inactive_top > 0.0 else 0.0
+    bottom_pitch = wire_diameter if bottom_height > 0.0 else 0.0
+    top_pitch = wire_diameter if top_height > 0.0 else 0.0
+    print(f"[spring_solid] bottom_height={bottom_height} top_height={top_height} bottom_pitch={bottom_pitch} top_pitch={top_pitch}")
 
-    bottom_pitch = 0.0
-    top_pitch = 0.0
     segments: List[Tuple[float, float]] = []
     if bottom_height > _EPSILON and inactive_bottom > 0.0:
-        bottom_pitch = bottom_height / max(inactive_bottom, _EPSILON)
         segments.append((max(bottom_pitch, _EPSILON), bottom_height))
     if active_height > _EPSILON and active_coils > 0.0:
-        segments.append((max(pitch_magnitude, _EPSILON), active_height))
+        segments.append((max(active_pitch, _EPSILON), active_height))
     if top_height > _EPSILON and inactive_top > 0.0:
-        top_pitch = top_height / max(inactive_top, _EPSILON)
         segments.append((max(top_pitch, _EPSILON), top_height))
-    print(f"[spring_solid] bottom_pitch={bottom_pitch} top_pitch={top_pitch} segments={segments}")
+    print(f"[spring_solid] segments={segments}")
 
     wire = _wire_from_segments(radius, segments)
     solid = _pipe_from_wire(wire, radius, wire_radius, height)

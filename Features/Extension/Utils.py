@@ -39,13 +39,19 @@ def spring_solid(
     end_type_index,
     end_type,
     radius: float,
-    pitch: float,
     height: float,
     wire_radius: float,
+    coils_total=None,
     *_ignored,
     **_ignored_kwargs,
 ) -> Part.Shape:
     """Create the solid geometry for an extension spring."""
+
+    total_coils = _as_float(coils_total, 0.0)
+    if total_coils > _EPSILON:
+        pitch = height / total_coils
+    else:
+        pitch = height
 
     safe_pitch = pitch if abs(pitch) > _EPSILON else (_EPSILON if pitch >= 0 else -_EPSILON)
     helix = Part.makeHelix(safe_pitch, height, radius)
