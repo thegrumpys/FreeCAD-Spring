@@ -93,6 +93,7 @@ def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> O
     axis = FreeCAD.Vector(0.0, 0.0, 1.0)
 
     for pitch, height in segments:
+        print(f"[_wire_from_segments] pitch={pitch} height={height} start_angle={start_angle} z_offset={z_offset}")
         if height <= _EPSILON:
             z_offset += height
             continue
@@ -111,6 +112,7 @@ def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> O
             edges.append(segment_edge)
 
         turns = height / pitch if abs(pitch) > _EPSILON else 0.0
+        print(f"[_wire_from_segments] angle_deg={angle_deg} translation={translation} edges={edges} turns={turns}")
         start_angle += 2.0 * math.pi * turns
         z_offset += height
 
@@ -156,14 +158,8 @@ def spring_solid(
     inactive_bottom = 0.0
     inactive_top = 0.0
     if inactive_total > 0.0:
-        match end_type_index:
-            case 3 | 4:
-                inactive_bottom = inactive_total / 2.0
-                inactive_top = inactive_total - inactive_bottom
-            case 2:
-                inactive_bottom = inactive_total
-            case _:
-                inactive_bottom = inactive_total
+       inactive_bottom = inactive_total / 2.0
+       inactive_top = inactive_total - inactive_bottom
     print(f"[spring_solid] inactive_total={inactive_total} inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
 
     scale = 1.0
