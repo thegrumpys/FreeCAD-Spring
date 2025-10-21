@@ -198,15 +198,15 @@ def spring_solid(
     solid = _pipe_from_wire(wire, radius, wire_radius, height)
 
     if end_type_index in {2, 4} and wire_radius > 0.0:
-        solid = _apply_ground_planes(solid, wire_radius)
+        solid = _apply_ground_planes(solid, 0.0, height, wire_radius)
 
     print(f"[spring_solid] solid={solid}")
     return solid
 
 
-def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
+def _apply_ground_planes(shape: Part.Shape, z_min, z_max, wire_radius: float) -> Part.Shape:
     """Trim the ends of a spring using planes offset by half the wire diameter."""
-    print(f"[_apply_ground_planes] shape={shape} wire_radius={wire_radius}")
+    print(f"[_apply_ground_planes] shape={shape} z_min={z_min} z_max={z_max} wire_radius={wire_radius}")
 
     try:
         bbox = shape.BoundBox
@@ -221,24 +221,24 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
     print(f"[_apply_ground_planes] bbox.YMin={bbox.YMin} bbox.YMax={bbox.YMax} bbox.YLength={bbox.YLength}")
     print(f"[_apply_ground_planes] bbox.ZMin={bbox.ZMin} bbox.ZMax={bbox.ZMax} bbox.ZLength={bbox.ZLength}")
 
-    z_min_cut = bbox.ZMin + 0.7 * wire_radius # remove 30% of coil
-    z_max_cut = bbox.ZMax - 0.7 * wire_radius # remove 30% of coil
+    z_min_cut = z_min - wire_radius
+    z_max_cut = z_max + wire_radius
     if z_max_cut <= z_min_cut:
         print(f"[_apply_ground_planes] shape={shape}")
         return shape
     print(f"[_apply_ground_planes] z_min_cut={z_min_cut} z_max_cut={z_max_cut}")
 
-    margin = 0 #max(wire_radius, _EPSILON)
+    margin = max(wire_radius, _EPSILON)
     x_size = bbox.XLength + 2.0 * margin
     y_size = bbox.YLength + 2.0 * margin
     base_x = bbox.XMin - margin
     base_y = bbox.YMin - margin
     print(f"[_apply_ground_planes] margin={margin} x_size={x_size} y_size={y_size} base_x={base_x} base_y={base_y}")
 
-    bottom_start = bbox.ZMin - margin
+    bottom_start = z_min - margin
     bottom_thickness = max(z_min_cut - bottom_start + wire_radius, _EPSILON)
     top_start = z_max_cut - wire_radius
-    top_thickness = max(bbox.ZMax + margin - top_start, _EPSILON)
+    top_thickness = max(z_max + margin - top_start, _EPSILON)
     print(f"[_apply_ground_planes] bottom_start={bottom_start} bottom_thickness={bottom_thickness} top_start={top_start} top_thickness={top_thickness}")
 
     try:
