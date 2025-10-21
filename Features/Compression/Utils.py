@@ -142,10 +142,12 @@ def spring_solid(
         base_pitch = float(pitch)
     else:
         base_pitch = _EPSILON if pitch >= 0.0 else -_EPSILON
+    print(f"[spring_solid] end_type_index={end_type_index} safe_height={safe_height} base_pitch={base_pitch}")
 
     pitch_magnitude = abs(base_pitch)
     total_coils = _as_float(coils_total, safe_height / pitch_magnitude if pitch_magnitude > _EPSILON else 0.0)
     total_coils = max(total_coils, 0.0)
+    print(f"[spring_solid] pitch_magnitude={pitch_magnitude} total_coils={total_coils}")
 
     inactive_total = max(_as_float(inactive_coils, 0.0), 0.0)
     if total_coils > 0.0:
@@ -162,19 +164,25 @@ def spring_solid(
                 inactive_bottom = inactive_total
             case _:
                 inactive_bottom = inactive_total
+    print(f"[spring_solid] inactive_total={inactive_total} inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
 
+    scale = 1.0
     active_coils = max(total_coils - inactive_total, 0.0)
     active_height = active_coils * pitch_magnitude
     if active_height > safe_height and active_coils > 0.0:
         scale = safe_height / active_height
         active_height = safe_height
         pitch_magnitude *= scale
+    print(f"[spring_solid] active_coils={active_coils} active_height={active_height} scale={scale} pitch_magnitude={pitch_magnitude}")
 
     available_height = max(safe_height - active_height, 0.0)
     inactive_pitch = available_height / inactive_total if inactive_total > _EPSILON else 0.0
     bottom_height = inactive_pitch * inactive_bottom if inactive_bottom > 0.0 else 0.0
     top_height = inactive_pitch * inactive_top if inactive_top > 0.0 else 0.0
+    print(f"[spring_solid] available_height={available_height} inactive_pitch={inactive_pitch} bottom_height={bottom_height} top_height={top_height}")
 
+    bottom_pitch = 0.0
+    top_pitch = 0.0
     segments: List[Tuple[float, float]] = []
     if bottom_height > _EPSILON and inactive_bottom > 0.0:
         bottom_pitch = bottom_height / max(inactive_bottom, _EPSILON)
@@ -184,6 +192,7 @@ def spring_solid(
     if top_height > _EPSILON and inactive_top > 0.0:
         top_pitch = top_height / max(inactive_top, _EPSILON)
         segments.append((max(top_pitch, _EPSILON), top_height))
+    print(f"[spring_solid] bottom_pitch={bottom_pitch} top_pitch={top_pitch} segments={segments}")
 
     wire = _wire_from_segments(radius, segments)
     solid = _pipe_from_wire(wire, radius, wire_radius, height)
@@ -212,14 +221,14 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
     print(f"[_apply_ground_planes] bbox.YMin={bbox.YMin} bbox.YMax={bbox.YMax} bbox.YLength={bbox.YLength}")
     print(f"[_apply_ground_planes] bbox.ZMin={bbox.ZMin} bbox.ZMax={bbox.ZMax} bbox.ZLength={bbox.ZLength}")
 
-    z_min_cut = bbox.ZMin + 2.0 * wire_radius - _EPSILON
-    z_max_cut = bbox.ZMax - 2.0 * wire_radius + _EPSILON
+    z_min_cut = bbox.ZMin + 0.7 * wire_radius # remove 30% of coil
+    z_max_cut = bbox.ZMax - 0.7 * wire_radius # remove 30% of coil
     if z_max_cut <= z_min_cut:
         print(f"[_apply_ground_planes] shape={shape}")
         return shape
     print(f"[_apply_ground_planes] z_min_cut={z_min_cut} z_max_cut={z_max_cut}")
 
-    margin = max(wire_radius, _EPSILON)
+    margin = 0 #max(wire_radius, _EPSILON)
     x_size = bbox.XLength + 2.0 * margin
     y_size = bbox.YLength + 2.0 * margin
     base_x = bbox.XMin - margin
@@ -245,12 +254,12 @@ def _apply_ground_planes(shape: Part.Shape, wire_radius: float) -> Part.Shape:
             top_thickness,
             FreeCAD.Vector(base_x, base_y, top_start),
         )
-        Part.show(bottom_box)
-        Part.show(top_box)
+#        Part.show(bottom_box)
+#        Part.show(top_box)
 
         grounded = shape;
-#        grounded = grounded.cut(bottom_box)
-#        grounded = grounded.cut(top_box)
+        grounded = grounded.cut(bottom_box)
+        grounded = grounded.cut(top_box)
     except Exception:
         print(f"[_apply_ground_planes] shape={shape}")
         return shape
