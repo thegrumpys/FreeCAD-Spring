@@ -392,7 +392,7 @@ def update_globals(obj) -> None:
 #    var ratio = temp_stress_2 / temp_stress_1
 #    pntc = stress_2 - stress_1 * ratio
 #    if (pntc < smallnum) pntc = smallnum
-#    if (cl_idx < 5) { // Is Life Catagory Not Peened?
+#    if (cl_idx < 5) { // Is Life Category Not Peened?
 #        j = 0
 #    } else { // Else Shot Peened
 #        j = 3
