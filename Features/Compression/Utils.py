@@ -143,29 +143,49 @@ def spring_solid(
     default_pitch = wire_diameter if wire_diameter > _EPSILON else safe_height
     total_coils = _as_float(coils_total, safe_height / max(default_pitch, _EPSILON))
     total_coils = max(total_coils, 0.0)
-    print(f"[spring_solid] wire_diameter={wire_diameter} total_coils={total_coils}")
+    print(f"[spring_solid] wire_diameter={wire_diameter} default_pitch={default_pitch} total_coils={total_coils}")
 
     inactive_total = max(_as_float(inactive_coils, 0.0), 0.0)
     if total_coils > 0.0:
         inactive_total = min(inactive_total, total_coils)
+    print(f"[spring_solid] inactive_total={inactive_total}")
 
     if wire_diameter > _EPSILON and safe_height > _EPSILON:
         max_inactive = safe_height / wire_diameter
         inactive_total = min(inactive_total, max_inactive)
+    print(f"[spring_solid] max_inactive={max_inactive} inactive_total={inactive_total}")
+
+    extra_inactive = 0.0
+    clearance_height = 0.0
+    if wire_diameter > _EPSILON:
+        if end_type_index == 1:  # Open
+            clearance_height = wire_diameter
+        elif end_type_index == 2:  # Open & Ground
+            clearance_height = wire_diameter
+            extra_inactive = 1.0
+    print(f"[spring_solid] extra_inactive={extra_inactive} clearance_height={clearance_height}")
+
+    inactive_total_geom = inactive_total + extra_inactive
+    if total_coils > 0.0:
+        inactive_total_geom = min(inactive_total_geom, total_coils)
+    if wire_diameter > _EPSILON and safe_height > _EPSILON:
+        max_inactive = safe_height / wire_diameter
+        inactive_total_geom = min(inactive_total_geom, max_inactive)
+    print(f"[spring_solid] inactive_total_geom={inactive_total_geom} max_inactive={max_inactive}")
 
     inactive_bottom = 0.0
     inactive_top = 0.0
-    if inactive_total > 0.0:
-        inactive_bottom = inactive_total / 2.0
-        inactive_top = inactive_total - inactive_bottom
-    print(f"[spring_solid] inactive_total={inactive_total} inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
+    if inactive_total_geom > 0.0:
+        inactive_bottom = inactive_total_geom / 2.0
+        inactive_top = inactive_total_geom - inactive_bottom
+    print(f"[spring_solid] inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
 
-    scale = 1.0
-    active_coils = max(total_coils - inactive_total, 0.0)
-    inactive_height = wire_diameter * inactive_total if wire_diameter > 0.0 else 0.0
-    active_height = max(safe_height - inactive_height, 0.0)
+    active_coils = max(total_coils - inactive_total_geom, 0.0)
+    inactive_height = wire_diameter * inactive_total_geom if wire_diameter > 0.0 else 0.0
+    clearance_height = min(clearance_height, max(safe_height - inactive_height, 0.0))
+    active_height = max(safe_height - inactive_height - clearance_height, 0.0)
     active_pitch = active_height / active_coils if active_coils > 0.0 else 0.0
-    print(f"[spring_solid] active_coils={active_coils} active_height={active_height} active_pitch={active_pitch} inactive_height={inactive_height}")
+    print(f"[spring_solid] active_coils={active_coils} inactive_height={inactive_height} clearance_height={clearance_height} active_height={active_height} active_pitch={active_pitch}")
 
     bottom_height = wire_diameter * inactive_bottom if inactive_bottom > 0.0 else 0.0
     top_height = wire_diameter * inactive_top if inactive_top > 0.0 else 0.0
