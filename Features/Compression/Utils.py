@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import math
-from typing import List, Optional, Tuple
-
-import FreeCAD
-import Part
+import FreeCAD, Part, math
 
 from .. import Utils as CoreUtils
+
+from FreeCAD import Vector, Rotation
 
 #    ["matnam",        "astm_fs",   "fedspec","Density",  "ee",   "gg", "kh","t010","t400","pte1","pte2","pte3","pte4","pte6","pte7","pte8","ptb1","ptb2","ptb3","ptb4","ptb6","ptb7","ptb8", "ptb1sr", "ptb1nosr", "ptb2sr", "ptb3sr", "silf", "sihf", "sisr", "wire_dia_filename", "od_free_filename", "dumyc", "longnam"],
 #    ["MUSIC_WIRE",      "A228",    "QQW-470",  0.00786, 207.0, 79.293, 1.00,  2.55,  1.38,    50,    36,    33,    30,    42,    39,    36,    75,    51,    47,    45,     0,     0,     0,       85,        100,       53,       50, 188.92, 310.28, 399.91, "wire_dia_metric",   "od_free_metric",       1,   "Music Wire  (all coatings) -                     ASTM A-228 "],
@@ -46,241 +44,111 @@ MUSIC_WIRE_SISR = 399.91
 
 _EPSILON = 1.0e-6
 
+def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength, transitionCoils=1.0):
+    print("\n=== spring_solid DEBUG START ===")
+    print(f"meanDiameter={meanDiameter}, wireDiameter={wireDiameter}, totalCoils={totalCoils}, endType={endType}, freeLength={freeLength}")
+
+    # ===== BASIC PARAMETERS =====
+    R = meanDiameter / 2.0
+    closedPitch = wireDiameter
+    activeCoils = totalCoils - 2.0
+    middlePitch = (freeLength - 2 * closedPitch - 2 * transitionCoils * (closedPitch + wireDiameter) / 2.0) / activeCoils
+
+    print(f"closedPitch={closedPitch:.3f}, middlePitch={middlePitch:.3f}, meanRadius={R}")
+
+    # ===== PROFILE CIRCLE (on X-Z plane) =====
+    profile_center = Vector(R, 0, 0)
+    profile_radius = wireDiameter / 2.0
+    profile_edge = Part.makeCircle(profile_radius, profile_center, Vector(0, 1, 0))
+    profile_wire = Part.Wire(profile_edge)
+    print(f"profile: Center={profile_center}, Radius={profile_radius}")
+
+    # ===== HELIX BUILDER =====
+    doc = FreeCAD.activeDocument() or FreeCAD.newDocument("SpringSolidTest")
+    edges = []
+    zpos = 0.0
+
+    colors = [
+        (1.0, 0.0, 0.0),   # bottom closed
+        (1.0, 0.5, 0.0),   # bottom transition
+        (1.0, 1.0, 0.0),   # middle
+        (0.0, 1.0, 0.0),   # top transition
+        (0.0, 0.5, 1.0),   # top closed
+    ]
+
+    def add_segment(label, pitch, coils, height, radius, startZ, reverse=False, color=(1,1,1)):
+        abs_height = abs(height)
+        lefthand = bool(reverse)
+        print(f"  Create {label}: pitch={pitch:.3f}, coils={coils:.1f}, height={height:.3f}, startZ={startZ:.3f}, reverse={reverse}, lefthand={lefthand}")
+        try:
+            helix = Part.makeHelix(pitch, abs_height, radius, 0, lefthand)
+            helix.Placement = FreeCAD.Placement(Vector(0, 0, startZ), Rotation(Vector(0, 0, 1), 0))
+            z_end = startZ + abs_height
+
+            e = helix.Edges[0]
+            s, t = e.Vertexes[0].Point, e.Vertexes[-1].Point
+            print(f"    start={s}, end={t}, Δz={t.z - s.z:.3f}")
+
+            obj = doc.addObject("Part::Feature", label.replace(" ", "_"))
+            obj.Shape = helix
+            obj.ViewObject.ShapeColor = color
+
+            return e, z_end
+        except Exception as ex:
+            print(f"    ⚠️ makeHelix failed for {label}: {ex}")
+            return None, startZ
+
+    # ===== BUILD SEQUENCE =====
+    edge, zpos = add_segment("Bottom Closed", closedPitch, 1.0, closedPitch, R, zpos, reverse=False, color=colors[0]); edges.append(edge)
+    edge, zpos = add_segment("Bottom Transition", (closedPitch + middlePitch) / 2, transitionCoils, (closedPitch + middlePitch) / 2, R, zpos, reverse=False, color=colors[1]); edges.append(edge)
+    edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils * middlePitch, R, zpos, reverse=False, color=colors[2]); edges.append(edge)
+    edge, zpos = add_segment("Top Transition", (closedPitch + middlePitch) / 2, transitionCoils, (closedPitch + middlePitch) / 2, R, zpos, reverse=False, color=colors[3]); edges.append(edge)
+    edge, zpos = add_segment("Top Closed", closedPitch, 1.0, closedPitch, R, zpos, reverse=False, color=colors[4]); edges.append(edge)
+
+    # ===== COMBINE INTO WIRE =====
+    print("\n=== Assembling helixWire ===")
+    try:
+        helixWire = Part.Wire([e for e in edges if e])
+        print("✅ helixWire built successfully")
+    except Exception as ex:
+        print(f"⚠️ Wire build failed: {ex}")
+        return None
+
+    # ===== SWEEP PROFILE ALONG WIRE =====
+    print("\n=== Sweep profile along helix wire ===")
+    try:
+        compressionSpring = profile_wire.makePipeShell([helixWire])
+        compressionSpring.setMode(True)
+        compressionSpring.build()
+        compressionSpring.makeSolid()
+        springShape = compressionSpring.shape()
+        print("✅ compressionSpring solid built successfully")
+    except Exception as ex:
+        print(f"⚠️ Sweep failed: {ex}")
+        springShape = helixWire.makePipe(profile_wire)
+
+    # ===== ADD TO VIEW =====
+    obj = doc.addObject("Part::Feature", "CompressionSpring")
+    obj.Shape = springShape
+    obj.ViewObject.ShapeColor = (0.8, 0.8, 0.8)
+    print("✅ compressionSpring displayed in FreeCAD view")
+
+    # ===== GROUND ENDS (optional) =====
+    if "ground" in endType.lower():
+        print("\n=== Create Ground Cutter Boxes ===")
+        cutter_size = 2 * (R + wireDiameter)
+        bottomCutter = Part.makeBox(cutter_size, cutter_size, wireDiameter, Vector(-R, -R, 0))
+        topCutter = bottomCutter.copy()
+        topCutter.Placement.Base.z = zpos - wireDiameter
+        springShape = springShape.cut(bottomCutter).cut(topCutter)
+        obj.Shape = springShape
+        print("✅ Ground ends applied")
+
+    print("=== spring_solid DEBUG END ===")
+    return springShape
 
 def end_type_index(end_type) -> int:
     return _enum_index("Compression", "EndType", end_type)
-
-
-def _pipe_from_wire(wire: Part.Wire, radius: float, wire_radius: float, fallback_height: float) -> Part.Shape:
-    print(f"[_pipe_from_wire] wire={wire} wire_radius={wire_radius} fallback_height={fallback_height}")
-    if wire is None or not wire.Edges:
-        sweep = Part.makeCylinder(radius, max(fallback_height, _EPSILON))
-        print(f"[_pipe_from_wire] sweep={sweep}")
-        return sweep
-
-    helix_edge = wire.Edges[0]
-    u0 = helix_edge.FirstParameter
-    start_pt = helix_edge.valueAt(u0)
-    tangent = helix_edge.tangentAt(u0)
-    if isinstance(tangent, tuple):
-        tangent = tangent[0]
-    tangent.normalize()
-
-    circle = Part.makeCircle(wire_radius, start_pt, tangent)
-    circle_wire = Part.Wire(circle)
-
-    try:
-        sweep = wire.makePipeShell([circle_wire], True, True)
-        if sweep.ShapeType == "Shell":
-            sweep = Part.makeSolid(sweep)
-    except Exception:
-        sweep = Part.makeCylinder(radius, max(fallback_height, _EPSILON))
-
-    print(f"[_pipe_from_wire] sweep={sweep}")
-    return sweep
-
-
-def _wire_from_segments(radius: float, segments: List[Tuple[float, float]]) -> Optional[Part.Wire]:
-    print(f"[_wire_from_segments] radius={radius} segments={segments}")
-    if not segments:
-        print(f"[_wire_from_segments] result=None")
-        return None
-
-    edges = []
-    z_offset = 0.0
-    start_angle = 0.0
-    origin = FreeCAD.Vector(0.0, 0.0, 0.0)
-    axis = FreeCAD.Vector(0.0, 0.0, 1.0)
-
-    for pitch, height in segments:
-        print(f"[_wire_from_segments] pitch={pitch} height={height} start_angle={start_angle} z_offset={z_offset}")
-        if height <= _EPSILON:
-            z_offset += height
-            continue
-
-        pitch = max(pitch, _EPSILON)
-        helix = Part.makeHelix(pitch, height, radius)
-        helix_wire = helix if isinstance(helix, Part.Wire) else Part.Wire([helix])
-
-        angle_deg = math.degrees(start_angle)
-        translation = FreeCAD.Vector(0.0, 0.0, z_offset)
-
-        for edge in helix_wire.Edges:
-            segment_edge = edge.copy()
-            segment_edge.rotate(origin, axis, angle_deg)
-            segment_edge.translate(translation)
-            edges.append(segment_edge)
-
-        turns = height / pitch if abs(pitch) > _EPSILON else 0.0
-        print(f"[_wire_from_segments] angle_deg={angle_deg} translation={translation} edges={edges} turns={turns}")
-        start_angle += 2.0 * math.pi * turns
-        z_offset += height
-
-    if not edges:
-        print(f"[_wire_from_segments] result=None")
-        return None
-
-    result = Part.Wire(edges)
-    print(f"[_wire_from_segments] result={result}")
-    return result
-
-
-def spring_solid(
-    end_type_index: Optional[int],
-    radius: float,
-    height: float,
-    wire_radius: float,
-    coils_total: Optional[float] = None,
-    inactive_coils: Optional[float] = None,
-) -> Part.Shape:
-    """Create a spring solid shaped according to the requested end type."""
-    print(f"[spring_solid] end_type_index={end_type_index} radius={radius} height={height} wire_radius={wire_radius} coils_total={coils_total} inactive_coils={inactive_coils}")
-
-    end_type_index = int(end_type_index or 0)
-    safe_height = max(float(height), 0.0)
-
-    wire_diameter = wire_radius * 2.0
-    default_pitch = wire_diameter if wire_diameter > _EPSILON else safe_height
-    total_coils = _as_float(coils_total, safe_height / max(default_pitch, _EPSILON))
-    total_coils = max(total_coils, 0.0)
-    print(f"[spring_solid] wire_diameter={wire_diameter} default_pitch={default_pitch} total_coils={total_coils}")
-
-    inactive_total = max(_as_float(inactive_coils, 0.0), 0.0)
-    if total_coils > 0.0:
-        inactive_total = min(inactive_total, total_coils)
-    print(f"[spring_solid] inactive_total={inactive_total}")
-
-    if wire_diameter > _EPSILON and safe_height > _EPSILON:
-        max_inactive = safe_height / wire_diameter
-        inactive_total = min(inactive_total, max_inactive)
-    print(f"[spring_solid] max_inactive={max_inactive} inactive_total={inactive_total}")
-
-    extra_inactive = 0.0
-    clearance_height = 0.0
-    if wire_diameter > _EPSILON:
-        if end_type_index == 1:  # Open
-            clearance_height = wire_diameter
-        elif end_type_index == 2:  # Open & Ground
-            clearance_height = wire_diameter
-            extra_inactive = 1.0
-    print(f"[spring_solid] extra_inactive={extra_inactive} clearance_height={clearance_height}")
-
-    inactive_total_geom = inactive_total + extra_inactive
-    if total_coils > 0.0:
-        inactive_total_geom = min(inactive_total_geom, total_coils)
-    if wire_diameter > _EPSILON and safe_height > _EPSILON:
-        max_inactive = safe_height / wire_diameter
-        inactive_total_geom = min(inactive_total_geom, max_inactive)
-    print(f"[spring_solid] inactive_total_geom={inactive_total_geom} max_inactive={max_inactive}")
-
-    inactive_bottom = 0.0
-    inactive_top = 0.0
-    if inactive_total_geom > 0.0:
-        inactive_bottom = inactive_total_geom / 2.0
-        inactive_top = inactive_total_geom - inactive_bottom
-    print(f"[spring_solid] inactive_bottom={inactive_bottom} inactive_top={inactive_top}")
-
-    active_coils = max(total_coils - inactive_total_geom, 0.0)
-    inactive_height = wire_diameter * inactive_total_geom if wire_diameter > 0.0 else 0.0
-    clearance_height = min(clearance_height, max(safe_height - inactive_height, 0.0))
-    active_height = max(safe_height - inactive_height - clearance_height, 0.0)
-    active_pitch = active_height / active_coils if active_coils > 0.0 else 0.0
-    print(f"[spring_solid] active_coils={active_coils} inactive_height={inactive_height} clearance_height={clearance_height} active_height={active_height} active_pitch={active_pitch}")
-
-    bottom_height = wire_diameter * inactive_bottom if inactive_bottom > 0.0 else 0.0
-    top_height = wire_diameter * inactive_top if inactive_top > 0.0 else 0.0
-    bottom_pitch = wire_diameter if bottom_height > 0.0 else 0.0
-    top_pitch = wire_diameter if top_height > 0.0 else 0.0
-    print(f"[spring_solid] bottom_height={bottom_height} top_height={top_height} bottom_pitch={bottom_pitch} top_pitch={top_pitch}")
-
-    segments: List[Tuple[float, float]] = []
-    if bottom_height > _EPSILON and inactive_bottom > 0.0:
-        segments.append((max(bottom_pitch, _EPSILON), bottom_height))
-    if active_height > _EPSILON and active_coils > 0.0:
-        segments.append((max(active_pitch, _EPSILON), active_height))
-    if top_height > _EPSILON and inactive_top > 0.0:
-        segments.append((max(top_pitch, _EPSILON), top_height))
-    print(f"[spring_solid] segments={segments}")
-
-    wire = _wire_from_segments(radius, segments)
-    solid = _pipe_from_wire(wire, radius, wire_radius, height)
-
-    if end_type_index in {2, 4} and wire_radius > 0.0:
-        solid = _apply_ground_planes(solid, 0.0, height, wire_radius)
-
-    print(f"[spring_solid] solid={solid}")
-    return solid
-
-
-def _apply_ground_planes(shape: Part.Shape, z_min, z_max, wire_radius: float) -> Part.Shape:
-    """Trim the ends of a spring using planes offset by half the wire diameter."""
-    print(f"[_apply_ground_planes] shape={shape} z_min={z_min} z_max={z_max} wire_radius={wire_radius}")
-
-    try:
-        bbox = shape.BoundBox
-    except Exception:
-        print(f"[_apply_ground_planes] shape={shape}")
-        return shape
-
-    if bbox is None or not bbox.isValid():
-        print(f"[_apply_ground_planes] shape={shape}")
-        return shape
-    print(f"[_apply_ground_planes] bbox.XMin={bbox.XMin} bbox.XMax={bbox.XMax} bbox.XLength={bbox.XLength}")
-    print(f"[_apply_ground_planes] bbox.YMin={bbox.YMin} bbox.YMax={bbox.YMax} bbox.YLength={bbox.YLength}")
-    print(f"[_apply_ground_planes] bbox.ZMin={bbox.ZMin} bbox.ZMax={bbox.ZMax} bbox.ZLength={bbox.ZLength}")
-
-    z_min_cut = z_min - wire_radius
-    z_max_cut = z_max + wire_radius
-    if z_max_cut <= z_min_cut:
-        print(f"[_apply_ground_planes] shape={shape}")
-        return shape
-    print(f"[_apply_ground_planes] z_min_cut={z_min_cut} z_max_cut={z_max_cut}")
-
-    margin = max(wire_radius, _EPSILON)
-    x_size = bbox.XLength + 2.0 * margin
-    y_size = bbox.YLength + 2.0 * margin
-    base_x = bbox.XMin - margin
-    base_y = bbox.YMin - margin
-    print(f"[_apply_ground_planes] margin={margin} x_size={x_size} y_size={y_size} base_x={base_x} base_y={base_y}")
-
-    bottom_start = z_min - margin
-    bottom_thickness = max(z_min_cut - bottom_start + wire_radius, _EPSILON)
-    top_start = z_max_cut - wire_radius
-    top_thickness = max(z_max + margin - top_start, _EPSILON)
-    print(f"[_apply_ground_planes] bottom_start={bottom_start} bottom_thickness={bottom_thickness} top_start={top_start} top_thickness={top_thickness}")
-
-    try:
-        bottom_box = Part.makeBox(
-            max(x_size, _EPSILON),
-            max(y_size, _EPSILON),
-            bottom_thickness,
-            FreeCAD.Vector(base_x, base_y, bottom_start),
-        )
-        top_box = Part.makeBox(
-            max(x_size, _EPSILON),
-            max(y_size, _EPSILON),
-            top_thickness,
-            FreeCAD.Vector(base_x, base_y, top_start),
-        )
-#        Part.show(bottom_box)
-#        Part.show(top_box)
-
-        grounded = shape;
-        grounded = grounded.cut(bottom_box)
-        grounded = grounded.cut(top_box)
-    except Exception:
-        print(f"[_apply_ground_planes] shape={shape}")
-        return shape
-
-    print(f"[_apply_ground_planes] grounded={grounded}")
-    return grounded
-
-def _as_float(value, default):
-    try:
-        candidate = getattr(value, "Value", value)
-        return float(candidate)
-    except (TypeError, ValueError):
-        return float(default)
 
 def _enum_value(selection):
     """Return the active enumeration value from a property selection."""
