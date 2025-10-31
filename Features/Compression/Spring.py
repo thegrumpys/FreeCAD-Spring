@@ -1,4 +1,4 @@
-import FreeCAD
+import FreeCAD, Part
 from pathlib import Path
 
 from .. import Utils as CoreUtils

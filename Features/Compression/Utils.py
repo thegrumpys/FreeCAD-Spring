@@ -44,105 +44,248 @@ MUSIC_WIRE_SISR = 399.91
 
 _EPSILON = 1.0e-6
 
-def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength, transitionCoils=1.0):
+# Utils.py
+import math
+import FreeCAD
+import Part
+from FreeCAD import Vector, Rotation
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
+def _endtype_info(endType: str):
+    """
+    Normalize endType into {inactive_closed_bottom, inactive_closed_top, is_ground}.
+    - "open"              : 0 closed, not ground
+    - "open & ground"     : 0 closed, ground true
+    - "closed"            : 1 closed each end, not ground
+    - "closed & ground"   : 1 closed each end, ground true
+    """
+    s = (endType or "").strip().lower()
+    is_ground = "ground" in s
+    if s.startswith("open"):
+        return dict(bot=0.0, top=0.0, ground=is_ground)
+    if s.startswith("closed"):
+        return dict(bot=1.0, top=1.0, ground=is_ground)
+    # default safe fallback
+    return dict(bot=0.0, top=0.0, ground=False)
+
+def _make_profile_circle(meanRadius: float, wireDiameter: float):
+    # profile circle on XZ plane (center @ (R,0,0)), radius = wire/2
+    center = Vector(meanRadius, 0, 0)
+    r = wireDiameter / 2.0
+    circle = Part.Circle(center, Vector(0,1,0), r)  # normal +Y => circle lies in XZ plane
+    edge = Part.Edge(circle)
+    wire = Part.Wire(edge)
+    print(f"  profile: Center={center}, Radius={r}")
+    print(f"  profileEdge={edge}, profileWire={wire}")
+    return edge, wire
+
+def _add_segment(label, pitch, coils, height, radius, startZ, lefthand=False, color=(1,1,1)):
+    """Build one helix segment, placed so it starts at z = startZ, always growing +Z by abs(height)."""
+    abs_height = abs(height)
+    print(f"    Create {label}: pitch={pitch:.3f}, coils={coils:.3f}, height={height:.3f}, startZ={startZ:.3f}, lefthand={lefthand}")
+    try:
+        helix = Part.makeHelix(pitch, abs_height, radius, 0, lefthand)
+        helix.Placement = FreeCAD.Placement(Vector(0,0,startZ), Rotation(Vector(0,0,1), 0))
+        e = helix.Edges[0]
+        s, t = e.Vertexes[0].Point, e.Vertexes[-1].Point
+        print(f"      start={s}, end={t}, Δz={t.z - s.z:.3f}")
+        return e, startZ + abs_height, helix
+    except Exception as ex:
+        print(f"      ⚠️ makeHelix failed ({label}): {ex}")
+        return None, startZ, None
+
+def _assemble_wire(edges):
+    """Robust wire assembly with join & tolerance."""
+    edges = [e for e in edges if e is not None]
+    print("\n=== Edge Endpoints Before Wire Assembly ===")
+    for i, e in enumerate(edges):
+        s, t = e.Vertexes[0].Point, e.Vertexes[-1].Point
+        print(f"  edge[{i}] start={s}, end={t}")
+    print("\nAssembling helixWire from edges...")
+
+    # Try join first
+    joined = Part.__sortEdges__(edges)
+    if joined and len(joined) == 1 and isinstance(joined[0], Part.Wire):
+        print("  ✅ helixWire built via __sortEdges__ join")
+        return joined[0]
+
+    # Fallback plain constructor
+    try:
+        w = Part.Wire(edges)
+        print(f"  ✅ helixWire built: {w}")
+        return w
+    except Exception as ex:
+        print(f"  ⚠️ Wire build failed: {ex}")
+        raise
+
+def _grind_planes_and_cut(shape, z_bottom, z_top, wireDiameter, show_debug=True):
+    """
+    Apply 'ground' to ends: cut with two horizontal planes (normal +Z).
+    We cut a *tiny* amount: thickness ~ 1.5 * wireDiameter so ends are closed.
+    """
+    print("\n=== Create Ground Planes ===")
+    doc = FreeCAD.activeDocument()
+    if doc is None:
+        show_debug = False  # no scene to show
+
+    # Large squares in XY, placed at z planes, then extruded a little
+    # Bottom: keep z >= 0 plane
+    bottom_face = Part.makePlane(50*wireDiameter, 50*wireDiameter, Vector(-25*wireDiameter, -25*wireDiameter, z_bottom))
+    bottom_solid = bottom_face.extrude(Vector(0,0,-wireDiameter))
+    Part.show(bottom_solid)
+    # Top: keep z <= z_top plane (cut from above)
+    top_face = Part.makePlane(50*wireDiameter, 50*wireDiameter, Vector(-25*wireDiameter, -25*wireDiameter, z_top))
+    top_solid = top_face.extrude(Vector(0,0,wireDiameter))
+    Part.show(top_solid)
+
+    if show_debug:
+        b = doc.addObject("Part::Feature", "BottomGrindPlane")
+        b.Shape = bottom_face
+        b.ViewObject.Transparency = 70
+        b.ViewObject.ShapeColor = (1.0, 0.2, 0.2)
+        t = doc.addObject("Part::Feature", "TopGrindPlane")
+        t.Shape = top_face
+        t.ViewObject.Transparency = 70
+        t.ViewObject.ShapeColor = (0.2, 1.0, 0.2)
+
+    # Cut: trim below 0 and above z_top
+    print("  Cutting bottom with small slab...")
+    shape = shape.cut(bottom_solid)
+    print("  Cutting top with small slab...")
+    shape = shape.cut(top_solid)
+
+    return shape
+
+# ------------------------------------------------------------
+# Main entry
+# ------------------------------------------------------------
+
+import FreeCAD, Part, math
+from FreeCAD import Vector, Rotation
+
+def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
     print("\n=== spring_solid DEBUG START ===")
-    print(f"meanDiameter={meanDiameter}, wireDiameter={wireDiameter}, totalCoils={totalCoils}, endType={endType}, freeLength={freeLength}")
 
-    # ===== BASIC PARAMETERS =====
+    # ---- Parameters ----
     R = meanDiameter / 2.0
+    inactiveCoils = 2.0 if "closed" in endType else 0.0
+    activeCoils = totalCoils - inactiveCoils
+    isGround = ("ground" in endType.lower())
+
     closedPitch = wireDiameter
-    activeCoils = totalCoils - 2.0
-    middlePitch = (freeLength - 2 * closedPitch - 2 * transitionCoils * (closedPitch + wireDiameter) / 2.0) / activeCoils
+    middlePitch = (freeLength - 2*closedPitch - 2*((closedPitch + wireDiameter)/2)) / activeCoils
 
-    print(f"closedPitch={closedPitch:.3f}, middlePitch={middlePitch:.3f}, meanRadius={R}")
+    print(f"   meanDiameter={meanDiameter}, wireDiameter={wireDiameter}, totalCoils={totalCoils}, endType={endType}, freeLength={freeLength}")
+    print(f"   inactiveCoils={inactiveCoils}, activeCoils={activeCoils}, isGround={isGround}")
+    print(f"   meanRadius(R)={R}")
+    print(f"   closedPitch={closedPitch:.3f}, middlePitch={middlePitch:.3f}")
 
-    # ===== PROFILE CIRCLE (on X-Z plane) =====
+    # ---- Profile circle (on X-Z plane) ----
     profile_center = Vector(R, 0, 0)
-    profile_radius = wireDiameter / 2.0
-    profile_edge = Part.makeCircle(profile_radius, profile_center, Vector(0, 1, 0))
-    profile_wire = Part.Wire(profile_edge)
-    print(f"profile: Center={profile_center}, Radius={profile_radius}")
+    profile = Part.Circle(profile_center, Vector(0,1,0), wireDiameter/2)
+    profileEdge = Part.Edge(profile)
+    profileWire = Part.Wire([profileEdge])
 
-    # ===== HELIX BUILDER =====
-    doc = FreeCAD.activeDocument() or FreeCAD.newDocument("SpringSolidTest")
-    edges = []
-    zpos = 0.0
+    print(f"   profile: Center={profile_center}, Radius={wireDiameter/2}")
 
-    colors = [
-        (1.0, 0.0, 0.0),   # bottom closed
-        (1.0, 0.5, 0.0),   # bottom transition
-        (1.0, 1.0, 0.0),   # middle
-        (0.0, 1.0, 0.0),   # top transition
-        (0.0, 0.5, 1.0),   # top closed
-    ]
-
-    def add_segment(label, pitch, coils, height, radius, startZ, reverse=False, color=(1,1,1)):
+    # ---- Helix builder ----
+    def add_segment(label, pitch, coils, height, radius, startZ, reverse=False):
         abs_height = abs(height)
-        lefthand = bool(reverse)
-        print(f"  Create {label}: pitch={pitch:.3f}, coils={coils:.1f}, height={height:.3f}, startZ={startZ:.3f}, reverse={reverse}, lefthand={lefthand}")
+        lefthand = bool(reverse)  # only control handedness — no 180° flip
+
+        print(f"     Create {label}: pitch={pitch:.3f}, coils={coils:.3f}, height={height:.3f}, startZ={startZ:.3f}, lefthand={lefthand}")
+
         try:
             helix = Part.makeHelix(pitch, abs_height, radius, 0, lefthand)
-            helix.Placement = FreeCAD.Placement(Vector(0, 0, startZ), Rotation(Vector(0, 0, 1), 0))
+            helix.Placement = FreeCAD.Placement(Vector(0,0,startZ), Rotation(Vector(0,0,1),0))
             z_end = startZ + abs_height
 
             e = helix.Edges[0]
             s, t = e.Vertexes[0].Point, e.Vertexes[-1].Point
-            print(f"    start={s}, end={t}, Δz={t.z - s.z:.3f}")
-
-            obj = doc.addObject("Part::Feature", label.replace(" ", "_"))
-            obj.Shape = helix
-            obj.ViewObject.ShapeColor = color
-
+            print(f"       start={s}, end={t}, Δz={t.z - s.z:.3f}")
             return e, z_end
         except Exception as ex:
-            print(f"    ⚠️ makeHelix failed for {label}: {ex}")
+            print(f"       ⚠️ makeHelix failed: {ex}")
             return None, startZ
 
-    # ===== BUILD SEQUENCE =====
-    edge, zpos = add_segment("Bottom Closed", closedPitch, 1.0, closedPitch, R, zpos, reverse=False, color=colors[0]); edges.append(edge)
-    edge, zpos = add_segment("Bottom Transition", (closedPitch + middlePitch) / 2, transitionCoils, (closedPitch + middlePitch) / 2, R, zpos, reverse=False, color=colors[1]); edges.append(edge)
-    edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils * middlePitch, R, zpos, reverse=False, color=colors[2]); edges.append(edge)
-    edge, zpos = add_segment("Top Transition", (closedPitch + middlePitch) / 2, transitionCoils, (closedPitch + middlePitch) / 2, R, zpos, reverse=False, color=colors[3]); edges.append(edge)
-    edge, zpos = add_segment("Top Closed", closedPitch, 1.0, closedPitch, R, zpos, reverse=False, color=colors[4]); edges.append(edge)
+    # ---- Build helix segments ----
+    zpos = 0.0
+    edges = []
 
-    # ===== COMBINE INTO WIRE =====
-    print("\n=== Assembling helixWire ===")
-    try:
-        helixWire = Part.Wire([e for e in edges if e])
-        print("✅ helixWire built successfully")
-    except Exception as ex:
-        print(f"⚠️ Wire build failed: {ex}")
-        return None
+    edge, zpos = add_segment("Bottom Closed", closedPitch, 1.0, closedPitch, R, zpos); edges.append(edge)
+    edge, zpos = add_segment("Bottom Transition", (closedPitch+middlePitch)/2, 1.0, (closedPitch+middlePitch)/2, R, zpos); edges.append(edge)
+    edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils*middlePitch, R, zpos); edges.append(edge)
+    edge, zpos = add_segment("Top Transition", (closedPitch+middlePitch)/2, 1.0, (closedPitch+middlePitch)/2, R, zpos); edges.append(edge)
+    edge, zpos = add_segment("Top Closed", closedPitch, 1.0, closedPitch, R, zpos); edges.append(edge)
 
-    # ===== SWEEP PROFILE ALONG WIRE =====
+    print("\n=== Edge Endpoints Before Wire Assembly ===")
+    for i,e in enumerate(edges):
+        if e:
+            s,t = e.Vertexes[0].Point, e.Vertexes[-1].Point
+            print(f"   edge[{i}] start={s}, end={t}")
+
+    # ---- Build path wire ----
+    helixWire = Part.Wire([e for e in edges if e])
+    print(f"\n   ✅ helixWire built: {helixWire}")
+
+    # ---- Sweep circle along wire ----
     print("\n=== Sweep profile along helix wire ===")
+    print("\n=== Sweep along helix (helixWire.makePipe(profileWire)) ===")
+    springShape = helixWire.makePipe(profileWire)
+    if hasattr(springShape, "ShapeType"):
+        print(f"   makePipe result ShapeType = {springShape.ShapeType}")
+    else:
+        print(f"   ⚠️ makePipe returned non-shape type: {type(springShape)}")
+
     try:
-        compressionSpring = profile_wire.makePipeShell([helixWire])
-        compressionSpring.setMode(True)
-        compressionSpring.build()
-        compressionSpring.makeSolid()
-        springShape = compressionSpring.shape()
-        print("✅ compressionSpring solid built successfully")
-    except Exception as ex:
-        print(f"⚠️ Sweep failed: {ex}")
-        springShape = helixWire.makePipe(profile_wire)
+        st = springShape.ShapeType
+    except:
+        st = None
+    print(f"   makePipe result ShapeType={st}")
 
-    # ===== ADD TO VIEW =====
-    obj = doc.addObject("Part::Feature", "CompressionSpring")
-    obj.Shape = springShape
-    obj.ViewObject.ShapeColor = (0.8, 0.8, 0.8)
-    print("✅ compressionSpring displayed in FreeCAD view")
+    # === Grind flat ends (restore old behavior) ===
+    if isGround:
+        print("=== Create Ground Planes & Cut ===")
+        springShape = _grind_planes_and_cut(springShape, z_bottom=0.0, z_top=zpos, wireDiameter=wireDiameter, show_debug=True)
+    else:
+        print("Skipping grinding; endType is not ground")
 
-    # ===== GROUND ENDS (optional) =====
-    if "ground" in endType.lower():
-        print("\n=== Create Ground Cutter Boxes ===")
-        cutter_size = 2 * (R + wireDiameter)
-        bottomCutter = Part.makeBox(cutter_size, cutter_size, wireDiameter, Vector(-R, -R, 0))
-        topCutter = bottomCutter.copy()
-        topCutter.Placement.Base.z = zpos - wireDiameter
-        springShape = springShape.cut(bottomCutter).cut(topCutter)
-        obj.Shape = springShape
-        print("✅ Ground ends applied")
+    # === Convert to solid if possible ===
+    print("=== Solidify ===")
+    try:
+        # If grinding returned a Compound, extract the shell
+        if springShape.ShapeType == "Compound":
+            print("   Extracting shell from Compound...")
+            shells = [s for s in springShape.Solids] + [s for s in springShape.Shells]
+            if shells:
+                springShape = shells[0]
+                print("   ✅ Using shell for solidification")
+
+        # Attempt solidification
+        try:
+            springShape = springShape.makeSolid()
+            print("   ✅ makeSolid succeeded")
+        except Exception as ex:
+            print(f"   ⚠️ makeSolid() failed: {ex}")
+            # fallback: try shape fixing & sewing
+            try:
+                from FreeCAD import Part as _Part
+                fixer = _Part.ShapeFix_Shape(springShape)
+                fixed = fixer.Shape()
+                sewer = _Part.BRepBuilderAPI_Sewing()
+                sewer.Add(fixed)
+                sewer.Perform()
+                sewed = sewer.SewedShape()
+                springShape = sewed.makeSolid()
+                print("   ✅ Sewing + makeSolid succeeded")
+            except Exception as ex2:
+                print(f"   ❌ Solidification fallback failed: {ex2}")
+
+    except Exception as all_ex:
+        print(f"❌ Solidification process error: {all_ex}")
 
     print("=== spring_solid DEBUG END ===")
     return springShape
@@ -185,7 +328,7 @@ def _enum_index(enum_type: str, name: str, selection) -> int:
 
 def update_globals(obj) -> None:
     """Update global properties based on the object's global properties."""
-#    
+#
 #    print(f"[update_globals] obj.PropCalcMethod={obj.PropCalcMethod}");
 #    print(f"[update_globals] obj.LifeCategory={obj.LifeCategory}");
 #    print(f"[update_globals] obj.EndType={obj.EndType}");
@@ -228,7 +371,7 @@ def update_globals(obj) -> None:
             obj.StressLimitStatic = obj.Tensile * obj.PercentTensileStatic / 100.0;
             end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
             match end_type_index:
-                case 1 | 2 | 3 | 4 | 5 | 6: 
+                case 1 | 2 | 3 | 4 | 5 | 6:
                     obj.setEditorMode("CoilsInactive", 1) # Visible R/O
                     obj.setEditorMode("AddCoilsAtSolid", 1) # Visible R/O
                 case _: # user specified
