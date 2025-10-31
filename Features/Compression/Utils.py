@@ -191,15 +191,19 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, inactiveCoils, endType,
     print(f"   profile: Center={profile_center}, Radius={profile_radius}")
 
     # ---- Helix builder ----
-    def add_segment(label, pitch, coils, height, radius, startZ, reverse=False):
+    def add_segment(label, pitch, coils, height, radius, startZ, angle, reverse=False):
         abs_height = abs(height)
-        lefthand = bool(reverse)  # only control handedness — no 180° flip
+        lefthand = bool(reverse)
 
-        print(f"     Create {label}: pitch={pitch:.3f}, coils={coils:.3f}, height={height:.3f}, startZ={startZ:.3f}, lefthand={lefthand}")
+        print(f"     Create {label}: pitch={pitch:.3f}, coils={coils:.3f}, height={height:.3f}, startZ={startZ:.3f}, angle={math.degrees(angle):.3f}°, lefthand={lefthand}")
 
         try:
             helix = Part.makeHelix(pitch, abs_height, radius, 0, lefthand)
-            helix.Placement = FreeCAD.Placement(Vector(0,0,startZ), Rotation(Vector(0,0,1),0))
+            deg_angle = math.degrees(angle)
+            if abs(deg_angle) > _EPSILON:
+                helix.rotate(Vector(0, 0, 0), Vector(0, 0, 1), deg_angle)
+            if abs(startZ) > _EPSILON:
+                helix.translate(Vector(0, 0, startZ))
             z_end = startZ + abs_height
 
             e = helix.Edges[0]
@@ -207,34 +211,40 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, inactiveCoils, endType,
             print(f"       start={s}, end={t}, Δz={t.z - s.z:.3f}")
             if e.isNull():
                 print("       ❌ Edge is null – helix creation failed silently")
-                return None, startZ
-            return e, z_end
+                return None, startZ, angle
+
+            delta_angle = coils * 2.0 * math.pi
+            if lefthand:
+                delta_angle *= -1.0
+            next_angle = angle + delta_angle
+            return e, z_end, next_angle
         except Exception as ex:
             print(f"       ⚠️ makeHelix failed: {ex}")
-            return None, startZ
+            return None, startZ, angle
 
     # ---- Build helix segments ----
     zpos = 0.0
+    angle = 0.0
     edges = []
 
     if closed_bottom_coils > 0:
-        edge, zpos = add_segment("Bottom Closed", closedPitch, closed_bottom_coils, closed_bottom_coils * closedPitch, R, zpos)
+        edge, zpos, angle = add_segment("Bottom Closed", closedPitch, closed_bottom_coils, closed_bottom_coils * closedPitch, R, zpos, angle)
         edges.append(edge)
         if transition_bottom:
             transition_height = transition_bottom * (closedPitch + middlePitch) / 2.0
-            edge, zpos = add_segment("Bottom Transition", (closedPitch + middlePitch) / 2.0, transition_bottom, transition_height, R, zpos)
+            edge, zpos, angle = add_segment("Bottom Transition", (closedPitch + middlePitch) / 2.0, transition_bottom, transition_height, R, zpos, angle)
             edges.append(edge)
 
     if activeCoils > _EPSILON:
-        edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils * middlePitch, R, zpos)
+        edge, zpos, angle = add_segment("Middle", middlePitch, activeCoils, activeCoils * middlePitch, R, zpos, angle)
         edges.append(edge)
 
     if closed_top_coils > 0:
         if transition_top:
             transition_height = transition_top * (closedPitch + middlePitch) / 2.0
-            edge, zpos = add_segment("Top Transition", (closedPitch + middlePitch) / 2.0, transition_top, transition_height, R, zpos)
+            edge, zpos, angle = add_segment("Top Transition", (closedPitch + middlePitch) / 2.0, transition_top, transition_height, R, zpos, angle)
             edges.append(edge)
-        edge, zpos = add_segment("Top Closed", closedPitch, closed_top_coils, closed_top_coils * closedPitch, R, zpos)
+        edge, zpos, angle = add_segment("Top Closed", closedPitch, closed_top_coils, closed_top_coils * closedPitch, R, zpos, angle)
         edges.append(edge)
 
     missing = [i for i,e in enumerate(edges) if e is None]
@@ -251,7 +261,7 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, inactiveCoils, endType,
             print(f"   edge[{i}] is None")
 
     # ---- Build path wire ----
-    helixWire = Part.Wire([e for e in edges if e])
+    helixWire = _assemble_wire(edges)
     print(f"\n   ✅ helixWire built: {helixWire}")
     print(f"      isNull={helixWire.isNull()}, isClosed={helixWire.isClosed()}, length={helixWire.Length if not helixWire.isNull() else 0:.3f}")
     if hasattr(helixWire, "check"):

@@ -93,7 +93,6 @@ class CompressionSpring:
             obj.LengthAtFree
         )
         obj.Shape = spring
-        Part.show(spring)
         FreeCAD.ActiveDocument.ActiveObject.Label = "CompressionSpring"
         print("Compression spring solid created and displayed successfully.")
 
