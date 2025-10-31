@@ -93,7 +93,9 @@ class CompressionSpring:
             obj.LengthAtFree
         )
         obj.Shape = spring
-        FreeCAD.ActiveDocument.ActiveObject.Label = "CompressionSpring"
+        # FreeCAD.ActiveDocument.ActiveObject can be None when recomputing the object,
+        # so set the label directly on the feature instead of assuming an active object.
+        obj.Label = "CompressionSpring"
         print("Compression spring solid created and displayed successfully.")
 
         SpringUtils.update_globals(obj)
