@@ -184,12 +184,9 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
     print(f"   closedPitch={closedPitch:.3f}, middlePitch={middlePitch:.3f}")
 
     # ---- Profile circle (on X-Z plane) ----
+    profile_radius = wireDiameter / 2.0
     profile_center = Vector(R, 0, 0)
-    profile = Part.Circle(profile_center, Vector(0,1,0), wireDiameter/2)
-    profileEdge = Part.Edge(profile)
-    profileWire = Part.Wire([profileEdge])
-
-    print(f"   profile: Center={profile_center}, Radius={wireDiameter/2}")
+    print(f"   profile: Center={profile_center}, Radius={profile_radius}")
 
     # ---- Helix builder ----
     def add_segment(label, pitch, coils, height, radius, startZ, reverse=False):
@@ -206,6 +203,9 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
             e = helix.Edges[0]
             s, t = e.Vertexes[0].Point, e.Vertexes[-1].Point
             print(f"       start={s}, end={t}, Δz={t.z - s.z:.3f}")
+            if e.isNull():
+                print("       ❌ Edge is null – helix creation failed silently")
+                return None, startZ
             return e, z_end
         except Exception as ex:
             print(f"       ⚠️ makeHelix failed: {ex}")
@@ -221,20 +221,67 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
     edge, zpos = add_segment("Top Transition", (closedPitch+middlePitch)/2, 1.0, (closedPitch+middlePitch)/2, R, zpos); edges.append(edge)
     edge, zpos = add_segment("Top Closed", closedPitch, 1.0, closedPitch, R, zpos); edges.append(edge)
 
+    missing = [i for i,e in enumerate(edges) if e is None]
+    if missing:
+        print(f"   ❌ Missing helix segments at indices {missing}; aborting sweep")
+        return None
+
     print("\n=== Edge Endpoints Before Wire Assembly ===")
     for i,e in enumerate(edges):
         if e:
             s,t = e.Vertexes[0].Point, e.Vertexes[-1].Point
             print(f"   edge[{i}] start={s}, end={t}")
+        else:
+            print(f"   edge[{i}] is None")
 
     # ---- Build path wire ----
     helixWire = Part.Wire([e for e in edges if e])
     print(f"\n   ✅ helixWire built: {helixWire}")
+    print(f"      isNull={helixWire.isNull()}, isClosed={helixWire.isClosed()}, length={helixWire.Length if not helixWire.isNull() else 0:.3f}")
+    if hasattr(helixWire, "check"):
+        print("      Wire.check():")
+        check_result = helixWire.check()
+        if check_result:
+            for line in str(check_result).splitlines():
+                print("        " + line)
+        else:
+            print("        (no issues reported)")
+    try:
+        print(f"      First vertex: {helixWire.Vertexes[0].Point}, Last vertex: {helixWire.Vertexes[-1].Point}")
+    except Exception as ex:
+        print(f"      ⚠️ Unable to access wire vertices: {ex}")
+
+    # ---- Build sweep profile aligned to helix start ----
+    helix_edge = helixWire.Edges[0]
+    u0 = helix_edge.FirstParameter
+    start_pt = helix_edge.valueAt(u0)
+    tangent = helix_edge.tangentAt(u0)
+    if isinstance(tangent, tuple):
+        tangent = tangent[0]
+    tangent.normalize()
+
+    try:
+        profileEdge = Part.makeCircle(profile_radius, start_pt, tangent)
+        profileWire = Part.Wire(profileEdge)
+    except Exception as ex:
+        print(f"   ❌ Failed to create profile circle: {ex}")
+        return None
+    print(f"   profileEdge={profileEdge}, profileWire={profileWire}")
 
     # ---- Sweep circle along wire ----
     print("\n=== Sweep profile along helix wire ===")
-    print("\n=== Sweep along helix (helixWire.makePipe(profileWire)) ===")
-    springShape = helixWire.makePipe(profileWire)
+    print("\n=== Sweep along helix (helixWire.makePipeShell) ===")
+    try:
+        springShape = helixWire.makePipeShell([profileWire], True, True)
+    except Exception as ex:
+        print(f"   ❌ makePipeShell raised exception: {ex}")
+        return None
+    if springShape.ShapeType == "Shell":
+        try:
+            springShape = Part.makeSolid(springShape)
+            print("   ✅ Converted pipe shell to solid via Part.makeSolid")
+        except Exception as ex:
+            print(f"   ⚠️ Part.makeSolid failed on pipe shell: {ex}")
     if hasattr(springShape, "ShapeType"):
         print(f"   makePipe result ShapeType = {springShape.ShapeType}")
     else:
@@ -242,14 +289,24 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
 
     try:
         st = springShape.ShapeType
-    except:
+    except Exception as ex:
+        print(f"   ⚠️ Unable to query ShapeType: {ex}")
         st = None
     print(f"   makePipe result ShapeType={st}")
+    if hasattr(springShape, "Faces"):
+        print(f"   Face count={len(springShape.Faces)}, Shell count={len(springShape.Shells)}, Solid count={len(springShape.Solids)}")
+    if hasattr(springShape, "BoundBox"):
+        bb = springShape.BoundBox
+        print(f"   BoundBox: X[{bb.XMin:.3f}, {bb.XMax:.3f}] Y[{bb.YMin:.3f}, {bb.YMax:.3f}] Z[{bb.ZMin:.3f}, {bb.ZMax:.3f}]")
+    if hasattr(springShape, "isClosed"):
+        print(f"   isClosed={springShape.isClosed()}")
+    if hasattr(springShape, "Volume"):
+        print(f"   Volume={springShape.Volume if st == 'Solid' else 'n/a'}")
 
     # === Grind flat ends (restore old behavior) ===
     if isGround:
         print("=== Create Ground Planes & Cut ===")
-        springShape = _grind_planes_and_cut(springShape, z_bottom=0.0, z_top=zpos, wireDiameter=wireDiameter, show_debug=True)
+        springShape = _grind_planes_and_cut(springShape, z_bottom=0.0, z_top=zpos, wireDiameter=wireDiameter, show_debug=False)
     else:
         print("Skipping grinding; endType is not ground")
 
@@ -263,6 +320,8 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
             if shells:
                 springShape = shells[0]
                 print("   ✅ Using shell for solidification")
+            else:
+                print("   ⚠️ No solids or shells found in compound")
 
         # Attempt solidification
         shapetype = getattr(springShape, "ShapeType", None)
@@ -304,6 +363,19 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
 
     except Exception as all_ex:
         print(f"❌ Solidification process error: {all_ex}")
+
+    if springShape is None:
+        print("❌ springShape is None after processing")
+    else:
+        st_final = getattr(springShape, "ShapeType", None)
+        print(f"   Final ShapeType={st_final}")
+        if hasattr(springShape, "Faces"):
+            print(f"   Final faces={len(springShape.Faces)} shells={len(springShape.Shells)} solids={len(springShape.Solids)}")
+        if hasattr(springShape, "isClosed"):
+            try:
+                print(f"   Final isClosed={springShape.isClosed()}")
+            except Exception as ex:
+                print(f"   ⚠️ Final isClosed check failed: {ex}")
 
     print("=== spring_solid DEBUG END ===")
     return springShape
