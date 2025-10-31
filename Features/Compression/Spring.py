@@ -81,32 +81,22 @@ class CompressionSpring:
         SpringUtils.update_properties(obj)
 
     def execute(self, obj):
-#        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
+        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
 
         print("\nExecuting CompressionSpring Feature...")
         spring = SpringUtils.spring_solid(
-            meanDiameter=28.0,
-            wireDiameter=2.8,
-            totalCoils=10.0,
-            endType="closed & ground",
-            freeLength=80.0
+            obj.MeanDiameterAtFree,
+            obj.WireDiameter,
+            obj.CoilsTotal,
+            obj.CoilsInactive,
+            obj.EndType,
+            obj.LengthAtFree
         )
+        obj.Shape = spring
         Part.show(spring)
         FreeCAD.ActiveDocument.ActiveObject.Label = "CompressionSpring"
         print("Compression spring solid created and displayed successfully.")
 
-#        radius = obj.OutsideDiameterAtFree / 2.0
-#        wire_radius = obj.WireDiameter / 2.0
-#        end_type_selection = getattr(obj, "EndType", None)
-#        end_type_index = SpringUtils.end_type_index(end_type_selection)
-#        obj.Shape = SpringUtils.spring_solid(
-#            end_type_index,
-#            radius,
-#            obj.LengthAtFree,
-#            wire_radius,
-#            getattr(obj, "CoilsTotal", None),
-#            getattr(obj, "CoilsInactive", None),
-#        )
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
 

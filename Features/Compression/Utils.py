@@ -54,23 +54,6 @@ from FreeCAD import Vector, Rotation
 # Helpers
 # ------------------------------------------------------------
 
-def _endtype_info(endType: str):
-    """
-    Normalize endType into {inactive_closed_bottom, inactive_closed_top, is_ground}.
-    - "open"              : 0 closed, not ground
-    - "open & ground"     : 0 closed, ground true
-    - "closed"            : 1 closed each end, not ground
-    - "closed & ground"   : 1 closed each end, ground true
-    """
-    s = (endType or "").strip().lower()
-    is_ground = "ground" in s
-    if s.startswith("open"):
-        return dict(bot=0.0, top=0.0, ground=is_ground)
-    if s.startswith("closed"):
-        return dict(bot=1.0, top=1.0, ground=is_ground)
-    # default safe fallback
-    return dict(bot=0.0, top=0.0, ground=False)
-
 def _make_profile_circle(meanRadius: float, wireDiameter: float):
     # profile circle on XZ plane (center @ (R,0,0)), radius = wire/2
     center = Vector(meanRadius, 0, 0)
@@ -166,20 +149,39 @@ def _grind_planes_and_cut(shape, z_bottom, z_top, wireDiameter, show_debug=True)
 import FreeCAD, Part, math
 from FreeCAD import Vector, Rotation
 
-def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
+def spring_solid(meanDiameter, wireDiameter, totalCoils, inactiveCoils, endType, freeLength):
     print("\n=== spring_solid DEBUG START ===")
 
     # ---- Parameters ----
     R = meanDiameter / 2.0
-    inactiveCoils = 2.0 if "closed" in endType else 0.0
-    activeCoils = totalCoils - inactiveCoils
-    isGround = ("ground" in endType.lower())
+    end_str = (endType or "").strip().lower()
+    inactive_coils = float(inactiveCoils or 0.0)
+    closed_bottom_coils = inactive_coils / 2.0
+    closed_top_coils = inactive_coils - closed_bottom_coils
+    transition_bottom = 1.0 if closed_bottom_coils > 0 else 0.0
+    transition_top = 1.0 if closed_top_coils > 0 else 0.0
+    transition_count = transition_bottom + transition_top
+    activeCoils = max(totalCoils - inactive_coils, 0.0)
+    isGround = "ground" in end_str
 
     closedPitch = wireDiameter
-    middlePitch = (freeLength - 2*closedPitch - 2*((closedPitch + wireDiameter)/2)) / activeCoils
+    const_height = (
+        closedPitch * (closed_bottom_coils + closed_top_coils)
+        + transition_count * closedPitch * 0.5
+    )
+    middlePitch_den = activeCoils + transition_count * 0.5
+    if middlePitch_den <= _EPSILON:
+        middlePitch = closedPitch
+    else:
+        middlePitch = (freeLength - const_height) / middlePitch_den
+        if middlePitch <= _EPSILON:
+            middlePitch = closedPitch
 
     print(f"   meanDiameter={meanDiameter}, wireDiameter={wireDiameter}, totalCoils={totalCoils}, endType={endType}, freeLength={freeLength}")
-    print(f"   inactiveCoils={inactiveCoils}, activeCoils={activeCoils}, isGround={isGround}")
+    print(
+        f"   closed_bottom={closed_bottom_coils}, closed_top={closed_top_coils}, transitions={transition_count}, "
+        f"inactiveCoils={inactive_coils}, activeCoils={activeCoils}, isGround={isGround}"
+    )
     print(f"   meanRadius(R)={R}")
     print(f"   closedPitch={closedPitch:.3f}, middlePitch={middlePitch:.3f}")
 
@@ -215,11 +217,25 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
     zpos = 0.0
     edges = []
 
-    edge, zpos = add_segment("Bottom Closed", closedPitch, 1.0, closedPitch, R, zpos); edges.append(edge)
-    edge, zpos = add_segment("Bottom Transition", (closedPitch+middlePitch)/2, 1.0, (closedPitch+middlePitch)/2, R, zpos); edges.append(edge)
-    edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils*middlePitch, R, zpos); edges.append(edge)
-    edge, zpos = add_segment("Top Transition", (closedPitch+middlePitch)/2, 1.0, (closedPitch+middlePitch)/2, R, zpos); edges.append(edge)
-    edge, zpos = add_segment("Top Closed", closedPitch, 1.0, closedPitch, R, zpos); edges.append(edge)
+    if closed_bottom_coils > 0:
+        edge, zpos = add_segment("Bottom Closed", closedPitch, closed_bottom_coils, closed_bottom_coils * closedPitch, R, zpos)
+        edges.append(edge)
+        if transition_bottom:
+            transition_height = transition_bottom * (closedPitch + middlePitch) / 2.0
+            edge, zpos = add_segment("Bottom Transition", (closedPitch + middlePitch) / 2.0, transition_bottom, transition_height, R, zpos)
+            edges.append(edge)
+
+    if activeCoils > _EPSILON:
+        edge, zpos = add_segment("Middle", middlePitch, activeCoils, activeCoils * middlePitch, R, zpos)
+        edges.append(edge)
+
+    if closed_top_coils > 0:
+        if transition_top:
+            transition_height = transition_top * (closedPitch + middlePitch) / 2.0
+            edge, zpos = add_segment("Top Transition", (closedPitch + middlePitch) / 2.0, transition_top, transition_height, R, zpos)
+            edges.append(edge)
+        edge, zpos = add_segment("Top Closed", closedPitch, closed_top_coils, closed_top_coils * closedPitch, R, zpos)
+        edges.append(edge)
 
     missing = [i for i,e in enumerate(edges) if e is None]
     if missing:
