@@ -170,6 +170,28 @@ class TestSpring(unittest.TestCase):
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
         self.assertAlmostEqual(getattr(spring, "AddCoilsAtSolid", 0.0), 1.0)
 
+        spring.EndType = "Open&Ground"
+        self.doc.recompute()
+        self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 0.0)
+        self.assertAlmostEqual(getattr(spring, "AddCoilsAtSolid", 0.0), 0.0)
+
+    def test_open_variants_have_no_closed_coils(self):
+        spring = CompressionSpring.make()
+        spring.CoilsTotal = 8.0
+        spring.LengthAtFree = 24.0
+
+        # Plain open ends
+        spring.EndType = "Open"
+        self.doc.recompute()
+        shape = spring.Shape
+        self.assertAlmostEqual(shape.BoundBox.ZLength, spring.LengthAtFree, places=6)
+
+        # Open & Ground should behave the same with no additional inactive coils.
+        spring.EndType = "Open&Ground"
+        self.doc.recompute()
+        shape = spring.Shape
+        self.assertAlmostEqual(shape.BoundBox.ZLength, spring.LengthAtFree, places=6)
+
     def test_parametric_sweep(self):
         """Generate multiple springs across diameters/pitches to ensure robustness."""
         for d in [10.0, 15.0, 25.0]:
