@@ -135,13 +135,13 @@ def _grind_planes_and_cut(shape, z_bottom, z_top, wireDiameter, show_debug=True)
     # Bottom: keep z >= 0 plane
     bottom_face = Part.makePlane(50*wireDiameter, 50*wireDiameter, Vector(-25*wireDiameter, -25*wireDiameter, z_bottom))
     bottom_solid = bottom_face.extrude(Vector(0,0,-wireDiameter))
-    Part.show(bottom_solid)
     # Top: keep z <= z_top plane (cut from above)
     top_face = Part.makePlane(50*wireDiameter, 50*wireDiameter, Vector(-25*wireDiameter, -25*wireDiameter, z_top))
     top_solid = top_face.extrude(Vector(0,0,wireDiameter))
-    Part.show(top_solid)
 
     if show_debug:
+        Part.show(bottom_solid)
+        Part.show(top_solid)
         b = doc.addObject("Part::Feature", "BottomGrindPlane")
         b.Shape = bottom_face
         b.ViewObject.Transparency = 70
@@ -265,24 +265,42 @@ def spring_solid(meanDiameter, wireDiameter, totalCoils, endType, freeLength):
                 print("   ✅ Using shell for solidification")
 
         # Attempt solidification
-        try:
-            springShape = springShape.makeSolid()
-            print("   ✅ makeSolid succeeded")
-        except Exception as ex:
-            print(f"   ⚠️ makeSolid() failed: {ex}")
-            # fallback: try shape fixing & sewing
+        shapetype = getattr(springShape, "ShapeType", None)
+        if shapetype == "Solid":
+            print("   ✅ Already a solid shape")
+        elif shapetype == "Shell":
             try:
-                from FreeCAD import Part as _Part
-                fixer = _Part.ShapeFix_Shape(springShape)
-                fixed = fixer.Shape()
-                sewer = _Part.BRepBuilderAPI_Sewing()
-                sewer.Add(fixed)
-                sewer.Perform()
-                sewed = sewer.SewedShape()
-                springShape = sewed.makeSolid()
-                print("   ✅ Sewing + makeSolid succeeded")
-            except Exception as ex2:
-                print(f"   ❌ Solidification fallback failed: {ex2}")
+                springShape = Part.Solid(springShape)
+                print("   ✅ Converted shell to solid via Part.Solid")
+            except Exception as ex:
+                print(f"   ⚠️ Part.Solid conversion failed: {ex}")
+                try:
+                    springShape = springShape.makeSolid()
+                    print("   ✅ Fallback shell.makeSolid succeeded")
+                except Exception as ex_shell:
+                    print(f"   ❌ Shell solidification failed: {ex_shell}")
+        else:
+            try:
+                springShape = springShape.makeSolid()
+                print("   ✅ makeSolid succeeded")
+            except Exception as ex:
+                print(f"   ⚠️ makeSolid() failed: {ex}")
+                # fallback: try shape fixing & sewing (if available)
+                shape_fix_module = getattr(Part, "ShapeFix", None)
+                if shape_fix_module and hasattr(shape_fix_module, "ShapeFix_Shape") and hasattr(Part, "BRepBuilderAPI_Sewing"):
+                    try:
+                        fixer = shape_fix_module.ShapeFix_Shape(springShape)
+                        fixed = fixer.Shape()
+                        sewer = Part.BRepBuilderAPI_Sewing()
+                        sewer.Add(fixed)
+                        sewer.Perform()
+                        sewed = sewer.SewedShape()
+                        springShape = sewed.makeSolid()
+                        print("   ✅ Sewing + makeSolid succeeded")
+                    except Exception as ex2:
+                        print(f"   ❌ Solidification fallback failed: {ex2}")
+                else:
+                    print("   ❌ Solidification fallback unavailable: ShapeFix tools not present")
 
     except Exception as all_ex:
         print(f"❌ Solidification process error: {all_ex}")
