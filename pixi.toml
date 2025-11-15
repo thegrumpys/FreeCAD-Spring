@@ -1,0 +1,116 @@
+[workspace]
+name = "freecad-spring"
+version = "0.1.0"
+description = "Development environment for the FreeCAD Spring workbench"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64"]
+
+[dependencies]
+python = ">=3.10,<3.12"
+cmake = ">=3.26"
+ninja = "*"
+pybind11 = ">=2.11"
+freecad = ">=1.0.0,<2"
+
+[activation.env]
+PYTHONPATH = "$PIXI_PROJECT_ROOT"
+
+[target.unix.activation.env]
+PYTHONPATH = "$PIXI_PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
+[target.win.activation.env]
+PYTHONPATH = "%PIXI_PROJECT_ROOT%;%PYTHONPATH%"
+
+[target.linux-64.dependencies]
+make = "*"
+c-compiler = "*"
+cxx-compiler = "*"
+
+[target.linux-aarch64.dependencies]
+make = "*"
+c-compiler = "*"
+cxx-compiler = "*"
+
+[target.osx-64.dependencies]
+llvm-openmp = "*"
+
+[target.osx-arm64.dependencies]
+llvm-openmp = "*"
+
+[tasks.setup-layout]
+cmd = "bash scripts/setup_cpp_layout.sh"
+description = "Create the src/ and lib/ scaffolding required by the C++ helper"
+
+[tasks.configure-linux]
+cmd = "make configure-linux"
+description = "Configure the project for a Release build on Linux"
+
+[tasks.configure-linux-aarch64]
+cmd = "make configure-linux-aarch64"
+description = "Configure the project for a Release build on Linux (AArch64)"
+
+[tasks.build-linux]
+cmd = "make build-linux"
+description = "Build the Linux Release artefact"
+
+[tasks.build-linux-aarch64]
+cmd = "make build-linux-aarch64"
+description = "Build the Linux (AArch64) Release artefact"
+
+[tasks.stage-linux]
+cmd = "make stage-linux"
+description = "Copy the Linux Release artefact into lib/Linux/SpringCpp"
+
+[tasks.stage-linux-aarch64]
+cmd = "make stage-linux-aarch64"
+description = "Copy the Linux (AArch64) Release artefact into lib/Linux/SpringCpp"
+
+[tasks.configure-macos]
+cmd = "make configure-macos"
+description = "Configure the project for a Release build on macOS"
+
+[tasks.build-macos]
+cmd = "make build-macos"
+description = "Build the macOS Release artefact"
+
+[tasks.stage-macos]
+cmd = "make stage-macos"
+description = "Copy the macOS Release artefact into lib/Mac/SpringCpp"
+
+[tasks.configure-windows]
+cmd = "make configure-windows"
+description = "Configure the project for a Release build on Windows"
+
+[tasks.build-windows]
+cmd = "make build-windows"
+description = "Build the Windows Release artefact"
+
+[tasks.stage-windows]
+cmd = "make stage-windows"
+description = "Copy the Windows Release artefact into lib/Windows/SpringCpp"
+
+[tasks.freecad]
+cmd = "freecad"
+description = "Launch the FreeCAD GUI (requires the binary on PATH or provided by pixi)"
+
+[tasks.freecadcmd]
+cmd = "freecadcmd"
+description = "Launch the FreeCAD command console"
+
+[tasks.diagnose-freecad]
+cmd = "python scripts/diagnose_freecad_env.py"
+description = "Inspect the environment to help CMake locate FreeCAD and Qt"
+
+[tasks.install-spring-path]
+cmd = "python scripts/install_spring_mod_path.py"
+description = "Install the Spring loader package into site-packages/Mod directories"
+
+[tasks.tests]
+cmd = "python -m pytest Tests"
+description = "Execute the Python unit tests (requires FreeCAD on PYTHONPATH)"
+
+[environments.default]
+features = ["dev"]
+
+[feature.dev.dependencies]
+pytest = "*"

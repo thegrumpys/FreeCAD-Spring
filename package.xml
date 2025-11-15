@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+
+  <name>Spring</name>
+
+  <description>Design and analyze **compression**, **extension**, and **torsion** springs</description>
+
+  <version>6.2.0</version>
+
+  <date>2025-10-20</date>
+
+  <maintainer email="bwatt@1fifoto.com">Brian D. Watt</maintainer>
+
+  <maintainer email="Info@SpringDesignSoftware.org">Michael Milley</maintainer>
+
+  <license file="LICENSE">MIT</license>
+
+  <url branch="main" type="repository">git@github.com:thegrumpys/FreeCAD-Spring.git</url>
+
+  <url type="bugtracker">git@github.com:thegrumpys/FreeCAD-Spring.git/issues</url>
+
+  <url type="readme">git@github.com:thegrumpys/FreeCAD-Spring/-/raw/main/README.md</url>
+
+  <content>
+    <workbench>
+      <freecadmin>1.0.2</freecadmin>
+      <tag>Spring</tag>
+      <tag>Springs</tag>
+      <tag>Compression</tag>
+      <tag>Extension</tag>
+      <tag>Torsion</tag>
+      <icon>Resources/icons/workbench.svg</icon>
+      <classname>SpringWorkbench</classname>
+      <subdirectory>.</subdirectory>
+    </workbench>
+  </content>
+
+</package>

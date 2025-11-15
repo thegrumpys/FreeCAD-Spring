@@ -1,0 +1,10 @@
+{
+  "name": "Spring",
+  "version": "0.1.0",
+  "description": "A FreeCAD workbench for designing compression, extension, and torsion springs.",
+  "maintainers": ["thegrumpys"],
+  "license": "MIT",
+  "url": "https://github.com/thegrumpys/FreeCAD-Spring",
+  "tags": ["spring", "mechanical", "design"],
+  "freecad_min_version": "0.21"
+}
