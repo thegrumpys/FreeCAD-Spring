@@ -2,8 +2,7 @@
 
 #include <Mod/Part/App/PartFeature.h>
 
-#include <App/PropertyBool.h>
-#include <App/PropertyFloat.h>
+#include <App/PropertyStandard.h>
 
 
 class TopoDS_Shape;
