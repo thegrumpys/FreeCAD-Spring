@@ -1,18 +1,18 @@
 #!/bin/bash
 set -e
 
-# Clone FreeCAD
+echo "Cloning FreeCAD"
 cd ..
 git clone --depth 1 --branch main --single-branch https://github.com/FreeCAD/FreeCAD.git
 cd FreeCAD
 
-# Symlink your workbench
+echo "Symlinking the Spring workbench"
 ln -s ../FreeCAD-Spring src/Mod/Spring
 
-# Patch CMakeLists to add Spring
+echo "Patching CMakeLists to include Spring"
 echo 'add_subdirectory(Spring)' >> src/Mod/CMakeLists.txt
 
-# Install using pixi
+echo "Installing dependencies with pixi"
 curl -fsSL https://pixi.sh/install.sh | sh
 export PATH="/root/.pixi/bin:$PATH"
 pixi install
