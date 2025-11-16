@@ -1,8 +1,0 @@
-<RCC>
-    <qresource prefix="/Spring">
-        <file>icons/SpringWorkbench.svg</file>
-        <file>icons/CompressionSpring.svg</file>
-        <file>icons/ExtensionSpring.svg</file>
-        <file>icons/TorsionSpring.svg</file>
-    </qresource>
-</RCC>
