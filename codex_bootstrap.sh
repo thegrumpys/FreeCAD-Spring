@@ -13,7 +13,8 @@ echo "Patching CMakeLists to include Spring"
 echo 'add_subdirectory(Spring)' >> src/Mod/CMakeLists.txt
 
 echo "Installing dependencies with pixi"
-curl -fsSL https://pixi.sh/install.sh | sh
+#curl -fsSL https://pixi.sh/install.sh | sh
+wget -qO- https://pixi.sh/install.sh | sh
 export PATH="/root/.pixi/bin:$PATH"
 pixi install
 mkdir -p build/debug
