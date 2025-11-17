@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+echo "Disabling SSL verification inside Codex..."
+git config --global http.sslVerify false
+
 echo "Cloning FreeCAD repository..."
 cd ..
 #git clone --depth 1 --branch main --single-branch https://github.com/FreeCAD/FreeCAD.git
