@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 /***************************************************************************
- *   Copyright (c) YEAR YOUR NAME <Your e-mail address>                    *
+ *   Copyright (c) 2024 OpenAI                                            *
  *                                                                         *
  *   This file is part of the FreeCAD CAx development system.              *
  *                                                                         *
@@ -22,51 +22,48 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef SPRING_COMPRESSIONSPRINGFEATURE_H
+#define SPRING_COMPRESSIONSPRINGFEATURE_H
 
-#include <Python.h>
+#include <SpringGlobal.h>
 
-
-#include <Base/Console.h>
-#include <Base/Interpreter.h>
-#include <Base/PyObjectBase.h>
-
-#include <CXX/Extensions.hxx>
-#include <CXX/Objects.hxx>
-
-#include "CompressionSpringFeature.h"
-
+#include <Mod/Part/App/PrimitiveFeature.h>
 
 namespace Spring
 {
-class Module: public Py::ExtensionModule<Module>
+
+class SpringExport CompressionSpring : public Part::Primitive
 {
+    PROPERTY_HEADER_WITH_OVERRIDE(Spring::CompressionSpring);
+
 public:
-    Module()
-        : Py::ExtensionModule<Module>("Spring")
+    CompressionSpring();
+
+    App::PropertyLength Pitch;
+    App::PropertyLength Radius;
+    App::PropertyAngle Angle;
+    App::PropertyQuantityConstraint SegmentLength;
+    App::PropertyEnumeration LocalCoord;
+    App::PropertyEnumeration Style;
+    App::PropertyIntegerConstraint CoilCount;
+    App::PropertyLength Height;
+    App::PropertyLength Length;
+
+    App::DocumentObjectExecReturn* execute() override;
+    short mustExecute() const override;
+    const char* getViewProviderName() const override
     {
-        initialize("This module is the Spring module.");  // register with Python
+        return "PartGui::ViewProviderHelixParametric";
     }
 
-    virtual ~Module()
-    {}
+protected:
+    void onChanged(const App::Property* prop) override;
 
 private:
+    static const char* LocalCSEnums[];
+    static const char* StyleEnums[];
 };
-
-PyObject* initModule()
-{
-    return Base::Interpreter().addModule(new Module);
-}
-
 
 }  // namespace Spring
 
-
-/* Python entry */
-PyMOD_INIT_FUNC(Spring)
-{
-    Spring::CompressionSpring::init();
-    PyObject* mod = Spring::initModule();
-    Base::Console().log("Loading Spring module... done\n");
-    PyMOD_Return(mod);
-}
+#endif  // SPRING_COMPRESSIONSPRINGFEATURE_H
