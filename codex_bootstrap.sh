@@ -35,7 +35,7 @@ echo "Symlinking FreeCAD-Spring workbench..."
 ln -s ../FreeCAD-Spring src/Mod/Spring
 
 echo "Adding Spring to CMakeLists.txt..."
-echo 'add_subdirectory(Spring)' >> src/Mod/CMakeLists.txt
+echo 'add_subdirectory(Spring)' > src/Mod/CMakeLists.txt
 
 echo "export PIXI_CACHE_DIR=/tmp/pixi-cache"
 echo "export PIXI_HOME=/tmp/pixi-home"
