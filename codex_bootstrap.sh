@@ -9,6 +9,7 @@ cd ..
 #git clone --depth 1 --branch main --single-branch https://github.com/FreeCAD/FreeCAD.git
 git clone --filter=blob:none https://github.com/FreeCAD/FreeCAD.git
 cd FreeCAD
+printf '' > src/Mod/CMakeLists.txt
 
 echo "Creating pixi cache and home directories (Codex-safe)..."
 mkdir -p /tmp/pixi-cache
@@ -35,7 +36,7 @@ echo "Symlinking FreeCAD-Spring workbench..."
 ln -s ../FreeCAD-Spring src/Mod/Spring
 
 echo "Adding Spring to CMakeLists.txt..."
-echo 'add_subdirectory(Spring)' > src/Mod/CMakeLists.txt
+printf 'add_subdirectory(Spring)' >> src/Mod/CMakeLists.txt
 
 echo "export PIXI_CACHE_DIR=/tmp/pixi-cache"
 echo "export PIXI_HOME=/tmp/pixi-home"
