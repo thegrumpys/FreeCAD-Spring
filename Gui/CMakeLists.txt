@@ -2,12 +2,19 @@
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/Mod/Spring
+    ${CMAKE_SOURCE_DIR}/src/Mod/Part/App
+    ${CMAKE_SOURCE_DIR}/src/Mod/Part/Gui
+    ${CMAKE_BINARY_DIR}/src
+    ${CMAKE_BINARY_DIR}/src/Mod/Spring
+    ${CMAKE_BINARY_DIR}/src/Mod/Part
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(SpringGui_LIBS
     Spring
     FreeCADGui
+    PartGui
 )
 
 qt_add_resources(Spring_QRC_SRCS Resources/Spring.qrc)
@@ -17,6 +24,8 @@ SET(SpringGui_SRCS
     AppSpringGui.cpp
     Command.cpp
     PreCompiled.h
+    ViewProviderCompressionSpringParametric.cpp
+    ViewProviderCompressionSpringParametric.h
     Workbench.cpp
     Workbench.h
 )
