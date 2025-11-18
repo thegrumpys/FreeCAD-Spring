@@ -54,24 +54,26 @@ const char* CompressionSpring::StyleEnums[] = {"Old style", "New style", nullptr
 
 CompressionSpring::CompressionSpring()
 {
-    ADD_PROPERTY_TYPE(Pitch, (5.0), "Compression Spring", App::Prop_None, "Pitch between spring coils");
+    ADD_PROPERTY_TYPE(Pitch, (1.0), "Helix", App::Prop_None, "The pitch of the helix");
     Pitch.setConstraints(&quantityRange);
-    ADD_PROPERTY_TYPE(Radius, (5.0), "Compression Spring", App::Prop_None, "Mean radius of the spring");
+    ADD_PROPERTY_TYPE(Height, (2.0), "Helix", App::Prop_None, "The height of the helix");
+    Height.setConstraints(&quantityRange);
+    ADD_PROPERTY_TYPE(Radius, (1.0), "Helix", App::Prop_None, "The radius of the helix");
     Radius.setConstraints(&quantityRange);
     ADD_PROPERTY_TYPE(
         SegmentLength,
         (0.0),
-        "Compression Spring",
+        "Helix",
         App::Prop_None,
-        "The number of turns per spring subdivision"
+        "The number of turns per helix subdivision"
     );
     SegmentLength.setConstraints(&quantityRange);
     ADD_PROPERTY_TYPE(
         Angle,
         (0.0),
-        "Compression Spring",
+        "Helix",
         App::Prop_None,
-        "If angle is != 0 a conical otherwise a cylindrical spring is used"
+        "If angle is != 0 a conical otherwise a cylindircal surface is used"
     );
     Angle.setConstraints(&apexRange);
     ADD_PROPERTY_TYPE(
@@ -79,37 +81,26 @@ CompressionSpring::CompressionSpring()
         (long(0)),
         "Coordinate System",
         App::Prop_None,
-        "Orientation of the local coordinate system of the spring"
+        "Orientation of the local coordinate system of the helix"
     );
     LocalCoord.setEnums(LocalCSEnums);
     ADD_PROPERTY_TYPE(
         Style,
         (long(0)),
-        "Spring style",
+        "Helix style",
         App::Prop_Hidden,
-        "Old style creates incorrect and new style create correct springs"
+        "Old style creates incorrect and new style create correct helices"
     );
     Style.setEnums(StyleEnums);
-    ADD_PROPERTY_TYPE(
-        CoilCount,
-        (10),
-        "Compression Spring",
-        App::Prop_None,
-        "Number of coils that make up the compression spring"
-    );
-    CoilCount.setConstraints(&coilRange);
-    ADD_PROPERTY_TYPE(Height, (50.0), "Compression Spring", App::Prop_None, "Overall height of the spring");
-    Height.setConstraints(&quantityRange);
-    Height.setReadOnly(true);
-    ADD_PROPERTY_TYPE(Length, (1.0), "Compression Spring", App::Prop_None, "Length of the generated wire");
+    ADD_PROPERTY_TYPE(Length, (1.0), "Helix", App::Prop_None, "The length of the helix");
     Length.setReadOnly(true);
 }
 
 void CompressionSpring::onChanged(const App::Property* prop)
 {
     if (!isRestoring()) {
-        if (prop == &Pitch || prop == &Radius || prop == &Angle || prop == &LocalCoord || prop == &Style
-            || prop == &SegmentLength || prop == &CoilCount) {
+        if (prop == &Pitch || prop == &Height || prop == &Radius || prop == &Angle
+            || prop == &LocalCoord || prop == &Style || prop == &SegmentLength) {
             try {
                 App::DocumentObjectExecReturn* ret = recompute();
                 delete ret;
@@ -126,6 +117,9 @@ short CompressionSpring::mustExecute() const
     if (Pitch.isTouched()) {
         return 1;
     }
+    if (Height.isTouched()) {
+        return 1;
+    }
     if (Radius.isTouched()) {
         return 1;
     }
@@ -138,12 +132,6 @@ short CompressionSpring::mustExecute() const
     if (Style.isTouched()) {
         return 1;
     }
-    if (SegmentLength.isTouched()) {
-        return 1;
-    }
-    if (CoilCount.isTouched()) {
-        return 1;
-    }
     return Primitive::mustExecute();
 }
 
@@ -151,38 +139,32 @@ App::DocumentObjectExecReturn* CompressionSpring::execute()
 {
     try {
         Standard_Real myPitch = Pitch.getValue();
-        Standard_Integer myCoils = CoilCount.getValue();
+        Standard_Real myHeight = Height.getValue();
         Standard_Real myRadius = Radius.getValue();
         Standard_Real myAngle = Angle.getValue();
         Standard_Boolean myLocalCS = LocalCoord.getValue() ? Standard_True : Standard_False;
         Standard_Real mySegLen = SegmentLength.getValue();
-
         if (myPitch < Precision::Confusion()) {
             Standard_Failure::Raise("Pitch too small");
         }
-        if (myCoils <= 0) {
-            Standard_Failure::Raise("Number of coils must be greater than zero");
-        }
-
-        Standard_Real nbTurns = static_cast<Standard_Real>(myCoils);
-        Standard_Real myHeight = myPitch * nbTurns;
+        Standard_Real nbTurns = myHeight / myPitch;
         if (nbTurns > 1e4) {
             Standard_Failure::Raise("Number of turns too high (> 1e4)");
         }
-
-        Height.setValue(myHeight);
-
         Standard_Real myRadiusTop = myRadius + myHeight * tan(Base::toRadians<double>(myAngle));
 
         this->Shape.setValue(
             Part::TopoShape().makeSpiralHelix(myRadius, myRadiusTop, myHeight, nbTurns, mySegLen, myLocalCS)
         );
-
+        // props.Mass() may seem a strange way to get the Length, but
+        // https://dev.opencascade.org/doc/refman/html/class_b_rep_g_prop.html#ab1d4bacc290bfaa8df13dd99ae7b8e70
+        // confirms this.
         GProp_GProps props;
         BRepGProp::LinearProperties(Shape.getShape().getShape(), props);
         Length.setValue(props.Mass());
     }
     catch (Standard_Failure& e) {
+
         return new App::DocumentObjectExecReturn(e.GetMessageString());
     }
 

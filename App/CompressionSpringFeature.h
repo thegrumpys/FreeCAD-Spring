@@ -40,21 +40,25 @@ public:
     CompressionSpring();
 
     App::PropertyLength Pitch;
+    App::PropertyLength Height;
     App::PropertyLength Radius;
     App::PropertyAngle Angle;
     App::PropertyQuantityConstraint SegmentLength;
     App::PropertyEnumeration LocalCoord;
     App::PropertyEnumeration Style;
-    App::PropertyIntegerConstraint CoilCount;
-    App::PropertyLength Height;
     App::PropertyLength Length;
 
+    /** @name methods override feature */
+    //@{
+    /// recalculate the feature
     App::DocumentObjectExecReturn* execute() override;
     short mustExecute() const override;
+    /// returns the type name of the ViewProvider
     const char* getViewProviderName() const override
     {
-        return "PartGui::ViewProviderHelixParametric";
+        return "SpringGui::ViewProviderCompressionSpringParametric";
     }
+    //@}
 
 protected:
     void onChanged(const App::Property* prop) override;
