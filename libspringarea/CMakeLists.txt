@@ -22,7 +22,7 @@ include_directories(${pybind11_INCLUDE_DIR})
 
 
 # this defines the source-files for library
-set(SPRING_AREA_SRC_COMMON
+set(SPRINGAREA_SRC_COMMON
     Arc.cpp
     Area.cpp
     AreaDxf.cpp
@@ -37,14 +37,14 @@ set(SPRING_AREA_SRC_COMMON
     kurve/offset.cpp
 )
 
-set(SPRING_AREA_SRC_CLIPPER
+set(SPRINGAREA_SRC_CLIPPER
     AreaClipper.cpp
     Adaptive.cpp
     clipper.cpp
 )
 
 # this defines the additional source-files for python module (wrapper to libspringarea)
-set(PYSPRING_AREA_SRC
+set(PYSPRINGAREA_SRC
     pyarea.cpp
 )
 
@@ -61,21 +61,21 @@ file(GLOB headers "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 
 # this makes the Python module
 add_library(
-  spring-area-native
+  springarea-native
   SHARED
-  ${SPRING_AREA_SRC_COMMON}
-  ${SPRING_AREA_SRC_CLIPPER}
+  ${SPRINGAREA_SRC_COMMON}
+  ${SPRINGAREA_SRC_CLIPPER}
 )
 
 add_library(
-    spring-area
+    springarea
     SHARED
-    ${PYSPRING_AREA_SRC}
+    ${PYSPRINGAREA_SRC}
 )
 
 
 if(MSVC)
-    set(spring_area_native_LIBS
+    set(springarea_native_LIBS
         debug MSVCRTD.LIB
         debug MSVCPRTD.LIB
         optimized MSVCRT.LIB
@@ -84,7 +84,7 @@ if(MSVC)
 
     #Universal C runtime introduced in VS 2015 (cl version 19)
     if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19"))
-        list(APPEND spring_area_native_LIBS
+        list(APPEND springarea_native_LIBS
             debug vcruntimed.lib
             debug ucrtd.lib
             optimized vcruntime.lib
@@ -92,72 +92,72 @@ if(MSVC)
         )
     endif()
 
-    set(spring_area_LIBS
+    set(springarea_LIBS
         ${Boost_LIBRARIES}
-        ${spring_area_native_LIBS}
+        ${springarea_native_LIBS}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND spring_area_LIBS ${Python3_LIBRARIES})
+        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 elseif(MINGW)
-    set(spring_area_native_LIBS
+    set(springarea_native_LIBS
         Rpcrt4.lib
     )
-    set(spring_area_LIBS
+    set(springarea_LIBS
         ${Boost_LIBRARIES}
-        ${spring_area_native_LIBS}
+        ${springarea_native_LIBS}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND spring_area_LIBS ${Python3_LIBRARIES})
+        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 else(MSVC)
-    set(spring_area_native_LIBS
+    set(springarea_native_LIBS
         )
-    set(spring_area_LIBS
+    set(springarea_LIBS
         ${Boost_LIBRARIES}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND spring_area_LIBS ${Python3_LIBRARIES})
+        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 endif(MSVC)
 
-target_link_libraries(spring-area-native ${spring_area_native_LIBS} Import)
-SET_BIN_DIR(spring-area-native spring-area-native /Mod/Spring)
+target_link_libraries(sprintarea-native ${springarea_native_LIBS} Import)
+SET_BIN_DIR(sprintarea-native sprintarea-native /Mod/Spring)
 
-target_link_libraries(spring-area spring-area-native ${spring_area_LIBS} ${spring_area_native_LIBS})
+target_link_libraries(sprintarea sprintarea-native ${springarea_LIBS} ${springarea_native_LIBS})
 
 # TODO why CMAKE_SHARED_LINKER_FLAGS is not used here?
 # This is a dirty workaround!
 if(NOT BUILD_DYNAMIC_LINK_PYTHON AND CMAKE_COMPILER_IS_CLANGXX)
     if(APPLE)
-        target_link_libraries(spring-area "-Wl,-undefined,dynamic_lookup")
+        target_link_libraries(springarea "-Wl,-undefined,dynamic_lookup")
     else(UNIX)
-        target_link_libraries(spring-area "-Wl,--undefined,dynamic_lookup")
+        target_link_libraries(springarea "-Wl,--undefined,dynamic_lookup")
     endif()
 endif()
 
-SET_BIN_DIR(spring-area spring-area /Mod/Spring)
-SET_PYTHON_PREFIX_SUFFIX(spring-area)
+SET_BIN_DIR(springarea springarea /Mod/Spring)
+SET_PYTHON_PREFIX_SUFFIX(springarea)
 
 EXECUTE_PROCESS(COMMAND ${Python3_EXECUTABLE} -c
     "from sysconfig import get_path; print(get_path('platlib'))"
     OUTPUT_VARIABLE Python_site_packages OUTPUT_STRIP_TRAILING_WHITESPACE )
 
-message(STATUS "spring-area module (for Path Workbench) will be installed to: " ${CMAKE_INSTALL_LIBDIR})
+message(STATUS "springarea module (for Path Workbench) will be installed to: " ${CMAKE_INSTALL_LIBDIR})
 
 if(WIN32)
-    set_target_properties(spring-area-native PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-    INSTALL(TARGETS spring-area-native
+    set_target_properties(sprintarea-native PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+    INSTALL(TARGETS sprintarea-native
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 else(WIN32)
-    INSTALL(TARGETS spring-area-native
+    INSTALL(TARGETS sprintarea-native
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif(WIN32)
 
 # this installs the python library
 install(
-    TARGETS spring-area
+    TARGETS springarea
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
