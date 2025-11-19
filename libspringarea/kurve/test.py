@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-import area
+import springarea
 
 p = area.Point(0, 0)
 
