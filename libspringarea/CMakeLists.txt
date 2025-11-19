@@ -121,10 +121,10 @@ else(MSVC)
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 endif(MSVC)
 
-target_link_libraries(sprintarea-native ${springarea_native_LIBS} Import)
-SET_BIN_DIR(sprintarea-native sprintarea-native /Mod/Spring)
+target_link_libraries(springarea-native ${springarea_native_LIBS} Import)
+SET_BIN_DIR(springarea-native springarea-native /Mod/Spring)
 
-target_link_libraries(sprintarea sprintarea-native ${springarea_LIBS} ${springarea_native_LIBS})
+target_link_libraries(springarea springarea-native ${springarea_LIBS} ${springarea_native_LIBS})
 
 # TODO why CMAKE_SHARED_LINKER_FLAGS is not used here?
 # This is a dirty workaround!
@@ -146,12 +146,12 @@ EXECUTE_PROCESS(COMMAND ${Python3_EXECUTABLE} -c
 message(STATUS "springarea module (for Path Workbench) will be installed to: " ${CMAKE_INSTALL_LIBDIR})
 
 if(WIN32)
-    set_target_properties(sprintarea-native PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-    INSTALL(TARGETS sprintarea-native
+    set_target_properties(springarea-native PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+    INSTALL(TARGETS springarea-native
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 else(WIN32)
-    INSTALL(TARGETS sprintarea-native
+    INSTALL(TARGETS springarea-native
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif(WIN32)
