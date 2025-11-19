@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-# Sprung gui init module
+# Spring gui init module
 # (c) 2001 Juergen Riegel
 # License LGPL
 
 
-class SprungWorkbench(Workbench):
-    "Sprung workbench object"
+class SpringWorkbench(Workbench):
+    "Spring workbench object"
 
-    Icon = FreeCAD.getResourceDir() + "Mod/Sprung/Resources/icons/SprungWorkbench.svg"
-    MenuText = "Sprung"
-    ToolTip = "Sprung workbench"
+    Icon = FreeCAD.getResourceDir() + "Mod/Spring/Resources/icons/SpringWorkbench.svg"
+    MenuText = "Spring"
+    ToolTip = "Spring workbench"
 
     def Initialize(self):
         # load the module
-        import SprungGui
+        import SpringGui
 
-        self.appendToolbar("Sprung", ["Sprung_HelloWorld"])
-        self.appendMenu("Sprung", ["Sprung_HelloWorld"])
+        self.appendToolbar("Spring", ["Spring_HelloWorld"])
+        self.appendMenu("Spring", ["Spring_HelloWorld"])
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
 
 
-Gui.addWorkbench(SprungWorkbench())
+Gui.addWorkbench(SpringWorkbench())

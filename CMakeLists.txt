@@ -1,41 +1,41 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 IF (BUILD_GUI)
-    PYSIDE_WRAP_RC(Sprung_QRC_SRCS Resources/Sprung.qrc)
+    PYSIDE_WRAP_RC(Spring_QRC_SRCS Resources/Spring.qrc)
 ENDIF (BUILD_GUI)
 
-SET(Sprung_SRCS
+SET(Spring_SRCS
     Init.py
     InitGui.py
-    Sprung.py
-    SprungGui.py
+    Spring.py
+    SpringGui.py
 )
-SOURCE_GROUP("" FILES ${Sprung_SRCS})
+SOURCE_GROUP("" FILES ${Spring_SRCS})
 
-SET(SprungGuiIcon_SVG
-    Resources/icons/SprungWorkbench.svg
-)
-
-ADD_CUSTOM_TARGET(Sprung ALL
-    SOURCES ${Sprung_SRCS} ${Sprung_QRC_SRCS} ${SprungGuiIcon_SVG}
+SET(SpringGuiIcon_SVG
+    Resources/icons/SpringWorkbench.svg
 )
 
-fc_copy_sources(Sprung "${CMAKE_BINARY_DIR}/Mod/Sprung" ${Sprung_SRCS})
-fc_copy_sources(Sprung "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Sprung" ${SprungGuiIcon_SVG})
+ADD_CUSTOM_TARGET(Spring ALL
+    SOURCES ${Spring_SRCS} ${Spring_QRC_SRCS} ${SpringGuiIcon_SVG}
+)
+
+fc_copy_sources(Spring "${CMAKE_BINARY_DIR}/Mod/Spring" ${Spring_SRCS})
+fc_copy_sources(Spring "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Spring" ${SpringGuiIcon_SVG})
 
 IF (BUILD_GUI)
-    fc_target_copy_resource(Sprung
+    fc_target_copy_resource(Spring
         ${CMAKE_CURRENT_BINARY_DIR}
-        ${CMAKE_BINARY_DIR}/Mod/Sprung
-        Sprung_rc.py)
+        ${CMAKE_BINARY_DIR}/Mod/Spring
+        Spring_rc.py)
 ENDIF (BUILD_GUI)
 
 INSTALL(
     FILES
-        ${Sprung_SRCS}
-        ${Sprung_QRC_SRCS}
+        ${Spring_SRCS}
+        ${Spring_QRC_SRCS}
     DESTINATION
-        Mod/Sprung
+        Mod/Spring
 )
 
-INSTALL(FILES ${SprungGuiIcon_SVG} DESTINATION "Mod/Sprung/Resources/icons")
+INSTALL(FILES ${SpringGuiIcon_SVG} DESTINATION "Mod/Spring/Resources/icons")

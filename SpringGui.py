@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-# FreeCAD tools of the Sprung workbench
+# FreeCAD tools of the Spring workbench
 # (c) 2001 Juergen Riegel
 # License LGPL
 
@@ -22,4 +22,4 @@ class CmdHelloWorld:
         }
 
 
-FreeCADGui.addCommand("Sprung_HelloWorld", CmdHelloWorld())
+FreeCADGui.addCommand("Spring_HelloWorld", CmdHelloWorld())
