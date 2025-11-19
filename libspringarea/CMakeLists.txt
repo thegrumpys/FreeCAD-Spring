@@ -122,7 +122,7 @@ else(MSVC)
 endif(MSVC)
 
 target_link_libraries(spring-area-native ${spring_area_native_LIBS} Import)
-SET_BIN_DIR(spring-area-native spring-area-native /Mod/CAM)
+SET_BIN_DIR(spring-area-native spring-area-native /Mod/Spring)
 
 target_link_libraries(spring-area spring-area-native ${spring_area_LIBS} ${spring_area_native_LIBS})
 
@@ -136,7 +136,7 @@ if(NOT BUILD_DYNAMIC_LINK_PYTHON AND CMAKE_COMPILER_IS_CLANGXX)
     endif()
 endif()
 
-SET_BIN_DIR(spring-area spring-area /Mod/CAM)
+SET_BIN_DIR(spring-area spring-area /Mod/Spring)
 SET_PYTHON_PREFIX_SUFFIX(spring-area)
 
 EXECUTE_PROCESS(COMMAND ${Python3_EXECUTABLE} -c

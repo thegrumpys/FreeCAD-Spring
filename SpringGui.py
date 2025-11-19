@@ -5,11 +5,14 @@
 # License LGPL
 
 import FreeCAD, FreeCADGui
+import springarea
 
 
 class CmdHelloWorld:
     def Activated(self):
         FreeCAD.Console.PrintMessage("Hello, World!\n")
+        p = area.Point(3.0, 4.0)
+        print(p.length())   # prints 5.0
 
     def IsActive(self):
         return True
