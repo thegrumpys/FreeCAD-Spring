@@ -6,24 +6,46 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include <GCE2d_MakeLine.hxx>
+#include <Geom2d_Line.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Dir2d.hxx>
+#include <gp_Lin2d.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Vec.hxx>
 #include <gp_Vec2d.hxx>
 
+
 #include <string>
+#include <stdexcept>
+
+#include <Standard_Handle.hxx>
 
 namespace py = pybind11;
+
+PYBIND11_DECLARE_HOLDER_TYPE(T, opencascade::handle<T>);
 
 PYBIND11_MODULE(springocct, m)
 {
     m.doc() = "Python bindings for a minimal set of OpenCascade helpers";
+
+    py::class_<gp_Lin2d>(m, "Lin2d")
+        .def(py::init<>())
+        .def(py::init<const gp_Pnt2d&, const gp_Dir2d&>(), py::arg("location"), py::arg("direction"))
+        .def_property("location", &gp_Lin2d::Location, &gp_Lin2d::SetLocation, "Line origin")
+        .def_property("direction", &gp_Lin2d::Direction, &gp_Lin2d::SetDirection, "Line direction")
+        .def("reverse", &gp_Lin2d::Reverse, "Reverse the line orientation")
+        .def("__repr__", [](const gp_Lin2d& line) {
+            const auto loc = line.Location();
+            const auto dir = line.Direction();
+            return "Lin2d(location=(" + std::to_string(loc.X()) + ", " + std::to_string(loc.Y())
+                   + "), direction=(" + std::to_string(dir.X()) + ", " + std::to_string(dir.Y()) + "))";
+        });
 
     py::class_<gp_Dir2d>(m, "Dir2d")
         .def(py::init<>())

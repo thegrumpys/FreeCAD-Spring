@@ -51,6 +51,28 @@ class CmdHelloWorld:
             f"{dist_method}, free function = {dist_free}\n"
         )
 
+        dir2d = springocct.Dir2d(1.0, 0.0)
+        vec2d = springocct.Vec2d(0.5, -0.25)
+        lin2d = springocct.Lin2d(first, dir2d)
+        FreeCAD.Console.PrintMessage(
+            f"springocct gp_Dir2d: {dir2d}, gp_Vec2d: {vec2d}, gp_Lin2d: {lin2d}\n"
+        )
+
+        origin = springocct.Pnt(0.0, 0.0, 0.0)
+        point = springocct.Pnt(1.0, 2.0, 3.0)
+        direction = springocct.Dir(0.0, 0.0, 1.0)
+        x_direction = springocct.Dir(1.0, 0.0, 0.0)
+        vector = springocct.Vec(origin, point)
+        axis2 = springocct.Ax2(origin, direction, x_direction)
+        axis3 = springocct.Ax3(origin, direction, x_direction)
+        circle = springocct.Circ(axis2, 2.5)
+
+        FreeCAD.Console.PrintMessage(
+            "springocct 3D types: "
+            f"gp_Pnt: {point}, gp_Dir: {direction}, gp_Vec: {vector}, gp_Ax2: {axis2}, "
+            f"gp_Ax3: {axis3}, gp_Circ: {circle}\n"
+        )
+
     def GetResources(self):
         return {
             "Pixmap": "freecad",
