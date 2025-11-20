@@ -73,6 +73,12 @@ class CmdHelloWorld:
             f"gp_Ax3: {axis3}, gp_Circ: {circle}\n"
         )
 
+        value = springocct.compression_spring_solid()
+        FreeCAD.Console.PrintMessage(
+            "springocct compression_spring_solid: "
+            f"return: {value}\n"
+        )
+
     def GetResources(self):
         return {
             "Pixmap": "freecad",

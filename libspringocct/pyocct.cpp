@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "Pnt2dNative.hpp"
+#include <Python.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
+
+#include "Pnt2dNative.hpp"
 
 #include <GCE2d_MakeLine.hxx>
 #include <Geom2d_Line.hxx>
@@ -20,11 +22,18 @@
 #include <gp_Vec.hxx>
 #include <gp_Vec2d.hxx>
 
+#include <Mod/Part/App/TopoShape.h>
 
 #include <string>
 #include <stdexcept>
 
 #include <Standard_Handle.hxx>
+
+struct check_pyobject_type {
+    check_pyobject_type() {
+        std::cout << "C++ thinks PyObject is: " << typeid(PyObject).name() << "\n";
+    }
+} check_instance;
 
 namespace py = pybind11;
 
@@ -214,4 +223,16 @@ PYBIND11_MODULE(springocct, m)
         py::arg("second"),
         "Compute the distance between two points"
     );
+
+    std::cout << "[springocct] module init\n";
+
+    m.def("compression_spring_solid", []() -> int {
+        std::cout << "[springocct] compression_spring_solid binding called\n";
+
+        int result = compression_spring_solid();
+
+        std::cout << "[springocct] compression_spring_solid result = " << result << "\n";
+
+        return result;
+    });
 }
