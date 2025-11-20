@@ -5,17 +5,51 @@
 # License LGPL
 
 import FreeCAD, FreeCADGui
-import springarea
+
+try:
+    import springarea
+except ImportError as exc:
+    springarea = None
+    FreeCAD.Console.PrintError(f"springarea unavailable: {exc}\n")
+
+try:
+    import springocct
+except ImportError as exc:
+    springocct = None
+    FreeCAD.Console.PrintError(f"springocct unavailable: {exc}\n")
 
 
 class CmdHelloWorld:
     def Activated(self):
         FreeCAD.Console.PrintMessage("Hello, World!\n")
-        p = area.Point(3.0, 4.0)
-        print(p.length())   # prints 5.0
+        self._exercise_springarea()
+        self._exercise_springocct()
 
     def IsActive(self):
         return True
+
+    def _exercise_springarea(self):
+        if springarea is None:
+            FreeCAD.Console.PrintError("springarea not available; skipping springarea checks.\n")
+            return
+
+        point = springarea.Point(3.0, 4.0)
+        length = point.length()
+        FreeCAD.Console.PrintMessage(f"springarea Point length: {length}\n")
+
+    def _exercise_springocct(self):
+        if springocct is None:
+            FreeCAD.Console.PrintError("springocct not available; skipping springocct checks.\n")
+            return
+
+        first = springocct.Pnt2d(1.0, 2.0)
+        second = first.translated(3.0, 4.0)
+        dist_method = first.distance(second)
+        dist_free = springocct.distance(first, second)
+        FreeCAD.Console.PrintMessage(
+            "springocct Pnt2d distances: method = "
+            f"{dist_method}, free function = {dist_free}\n"
+        )
 
     def GetResources(self):
         return {

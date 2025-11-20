@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 add_subdirectory(libspringarea)
+add_subdirectory(libspringocct)
 
 IF (BUILD_GUI)
     PYSIDE_WRAP_RC(Spring_QRC_SRCS Resources/Spring.qrc)
