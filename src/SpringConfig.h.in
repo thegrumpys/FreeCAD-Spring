@@ -1,4 +1,0 @@
-#pragma once
-
-#define SPRING_VERSION "0.1.0"
-#define SPRING_TARGET_PLATFORM "@SPRING_TARGET_PLATFORM@"
