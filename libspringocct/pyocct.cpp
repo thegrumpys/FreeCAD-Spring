@@ -10,6 +10,7 @@
 
 #include <GCE2d_MakeLine.hxx>
 #include <Geom2d_Line.hxx>
+#include <TopoDS_Shape.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
@@ -42,6 +43,8 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, opencascade::handle<T>);
 PYBIND11_MODULE(springocct, m)
 {
     m.doc() = "Python bindings for a minimal set of OpenCascade helpers";
+
+    py::class_<TopoDS_Shape>(m, "TopoDS_Shape");
 
     py::class_<gp_Lin2d>(m, "Lin2d")
         .def(py::init<>())
@@ -226,12 +229,12 @@ PYBIND11_MODULE(springocct, m)
 
     std::cout << "[springocct] module init\n";
 
-    m.def("compression_spring_solid", []() -> int {
+    m.def("compression_spring_solid", []() -> TopoDS_Shape {
         std::cout << "[springocct] compression_spring_solid binding called\n";
 
-        int result = compression_spring_solid();
+        TopoDS_Shape result = compression_spring_solid();
 
-        std::cout << "[springocct] compression_spring_solid result = " << result << "\n";
+        std::cout << "[springocct] compression_spring_solid result created" << "\n";
 
         return result;
     });

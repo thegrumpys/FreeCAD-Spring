@@ -7,4 +7,4 @@
 // Compute the distance between two 2D points.
 double Distance2d(const gp_Pnt2d& first, const gp_Pnt2d& second);
 
-int compression_spring_solid();
+TopoDS_Shape compression_spring_solid();

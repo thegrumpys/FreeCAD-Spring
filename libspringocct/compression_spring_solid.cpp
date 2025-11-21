@@ -23,7 +23,7 @@
 #include <gp_Circ.hxx>
 #include <iostream>
 
-int compression_spring_solid() {
+TopoDS_Shape compression_spring_solid() {
 
     std::cout << "Starting OCCSample" << std::endl;
 
@@ -364,5 +364,5 @@ int compression_spring_solid() {
     }
 
     std::cout << "Ending OCCSample" << std::endl;
-    return 0;
+    return compressionSpring;
 }
