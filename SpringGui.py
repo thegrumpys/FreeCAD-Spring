@@ -7,12 +7,6 @@
 import FreeCAD, FreeCADGui
 
 try:
-    import springarea
-except ImportError as exc:
-    springarea = None
-    FreeCAD.Console.PrintError(f"springarea unavailable: {exc}\n")
-
-try:
     import springocct
 except ImportError as exc:
     springocct = None
@@ -22,20 +16,10 @@ except ImportError as exc:
 class CmdHelloWorld:
     def Activated(self):
         FreeCAD.Console.PrintMessage("Hello, World!\n")
-        self._exercise_springarea()
         self._exercise_springocct()
 
     def IsActive(self):
         return True
-
-    def _exercise_springarea(self):
-        if springarea is None:
-            FreeCAD.Console.PrintError("springarea not available; skipping springarea checks.\n")
-            return
-
-        point = springarea.Point(3.0, 4.0)
-        length = point.length()
-        FreeCAD.Console.PrintMessage(f"springarea Point length: {length}\n")
 
     def _exercise_springocct(self):
         if springocct is None:
