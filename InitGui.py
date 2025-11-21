@@ -16,8 +16,8 @@ class SpringWorkbench(Workbench):
         # load the module
         import SpringGui
 
-        self.appendToolbar("Spring", ["Spring_HelloWorld"])
-        self.appendMenu("Spring", ["Spring_HelloWorld"])
+        self.appendToolbar("Spring", ["Spring_MakeCompressionSpring"])
+        self.appendMenu("Spring", ["Spring_MakeCompressionSpring"])
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
