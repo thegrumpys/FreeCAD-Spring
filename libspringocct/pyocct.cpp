@@ -232,7 +232,14 @@ PYBIND11_MODULE(springocct, m)
     m.def("compression_spring_solid", []() -> TopoDS_Shape {
         std::cout << "[springocct] compression_spring_solid binding called\n";
 
-        TopoDS_Shape result = compression_spring_solid();
+        TopoDS_Shape result = compression_spring_solid(
+          1.1, // OD_Free
+          0.1055 // Wire_Dia
+          3.25, // L_Free
+          16.0, // Coils_T
+          3, // End_Types::Closed;
+          20 // LevelOfDetail
+        );
 
         std::cout << "[springocct] compression_spring_solid result created" << "\n";
 

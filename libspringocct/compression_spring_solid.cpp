@@ -23,7 +23,16 @@
 #include <gp_Circ.hxx>
 #include <iostream>
 
-TopoDS_Shape compression_spring_solid() {
+#include "compression_spring_solid.hpp"
+
+TopoDS_Shape compression_spring_solid(
+    double outer_diameter_in,
+    double wire_diameter_in,
+    double free_length_in,
+    double total_coils,
+    int end_type,
+    double level_of_detail)
+{
 
     std::cout << "Starting OCCSample" << std::endl;
 
@@ -44,23 +53,25 @@ TopoDS_Shape compression_spring_solid() {
         std::cout << "in2mm=" << in2mm << std::endl;
         std::cout << std::endl;
 
-        Standard_Real OD_Free = 1.1;
-        Standard_Real Wire_Dia = 0.1055;
-        Standard_Real L_Free = 3.25;
-        Standard_Real Coils_T = 16.0;
-        Standard_Real Mean_Dia = 0.9945;
-        Standard_Real Coils_A = 10.0;
-        Standard_Integer End_Type = End_Types::Closed;
+        Standard_Real OD_Free = outer_diameter_in;
+        Standard_Real Wire_Dia = wire_diameter_in;
+        Standard_Real L_Free = free_length_in;
+        Standard_Real Coils_T = total_coils;
+        Standard_Integer End_Type = end_type;
         std::cout << "OD_Free=" << OD_Free << std::endl;
         std::cout << "Wire_Dia=" << Wire_Dia << std::endl;
         std::cout << "L_Free=" << L_Free << std::endl;
         std::cout << "Coils_T=" << Coils_T << std::endl;
-        std::cout << "Mean_Dia=" << Mean_Dia << std::endl;
-        std::cout << "Coils_A=" << Coils_A << std::endl;
         std::cout << "End_Type=" << End_Type << std::endl;
         std::cout << std::endl;
 
-        Standard_Real LevelOfDetail = 20; // Level of Detail
+        Standard_Real Mean_Dia = OD_Free - Wire_Dia;
+        Standard_Real Coils_A = Coils_T - 6.0;
+        std::cout << "Mean_Dia=" << Mean_Dia << std::endl;
+        std::cout << "Coils_A=" << Coils_A << std::endl;
+        std::cout << std::endl;
+
+        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
         Standard_Real LinearDeflection = Mean_Dia/LevelOfDetail;
         std::cout << "LevelOfDetail=" << LevelOfDetail << std::endl;
         std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
