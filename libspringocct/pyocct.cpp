@@ -221,15 +221,26 @@ PYBIND11_MODULE(springocct, m)
         "Compute the distance between two points"
     );
 
-    m.def("compression_spring_solid", []() -> TopoDS_Shape {
-        TopoDS_Shape result = compression_spring_solid(
-          1.1, // OD_Free
-          0.1055, // Wire_Dia
-          3.25, // L_Free
-          16.0, // Coils_T
-          3, // End_Types::Closed;
-          20 // LevelOfDetail
-        );
-        return result;
-    });
+    m.def(
+        "compression_spring_solid",
+        [](double outer_diameter_in,
+           double wire_diameter_in,
+           double free_length_in,
+           double total_coils,
+           int end_type,
+           double level_of_detail) {
+            return compression_spring_solid(
+                outer_diameter_in,
+                wire_diameter_in,
+                free_length_in,
+                total_coils,
+                end_type,
+                level_of_detail);
+        },
+        py::arg("outer_diameter_in"),
+        py::arg("wire_diameter_in"),
+        py::arg("free_length_in"),
+        py::arg("total_coils"),
+        py::arg("end_type"),
+        py::arg("level_of_detail"));
 }
