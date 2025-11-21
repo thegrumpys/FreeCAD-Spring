@@ -24,9 +24,9 @@
 #include <iostream>
 
 TopoDS_Shape compression_spring_solid(
-    double outer_diameter_in,
-    double wire_diameter_in,
-    double free_length_in,
+    double outer_diameter,
+    double wire_diameter,
+    double free_length,
     double total_coils,
     int end_type,
     double level_of_detail)
@@ -47,13 +47,9 @@ TopoDS_Shape compression_spring_solid(
             User_Specified,// 7 [ "User_Specified", 0.0,       0.0]
         };
 
-        Standard_Real in2mm = 25.4;
-        std::cout << "in2mm=" << in2mm << std::endl;
-        std::cout << std::endl;
-
-        Standard_Real OD_Free = outer_diameter_in;
-        Standard_Real Wire_Dia = wire_diameter_in;
-        Standard_Real L_Free = free_length_in;
+        Standard_Real OD_Free = outer_diameter;
+        Standard_Real Wire_Dia = wire_diameter;
+        Standard_Real L_Free = free_length;
         Standard_Real Coils_T = total_coils;
         Standard_Integer End_Type = end_type;
         std::cout << "OD_Free=" << OD_Free << std::endl;
@@ -75,14 +71,14 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
         std::cout << std::endl;
 
-        Standard_Real profileRadius = Wire_Dia / 2.0 * in2mm;
-        Standard_Real helixRadius = Mean_Dia / 2.0 * in2mm;
+        Standard_Real profileRadius = Wire_Dia / 2.0;
+        Standard_Real helixRadius = Mean_Dia / 2.0;
         std::cout << "profileRadius=" << profileRadius << std::endl;
         std::cout << "helixRadius=" << helixRadius << std::endl;
         std::cout << std::endl;
 
         Standard_Real closedHelixCoils = (Coils_T - Coils_A) / 2.0;
-        Standard_Real closedHelixPitch = Wire_Dia * in2mm;
+        Standard_Real closedHelixPitch = Wire_Dia;
         Standard_Real closedHelixHypotenuse = sqrt((2.0 * M_PI * 2.0 * M_PI) + (closedHelixPitch * closedHelixPitch));
         Standard_Real closedHelixHeight = closedHelixCoils * closedHelixPitch;
         std::cout << "closedHelixCoils=" << closedHelixCoils << std::endl;
@@ -98,7 +94,7 @@ TopoDS_Shape compression_spring_solid(
         if (Coils_T - Coils_A > 0.0) {
             middleHelixCoils -= 2.0 * maxTransitionCoils;
         }
-        Standard_Real middleHelixPitch = (L_Free - Wire_Dia * (Coils_T - Coils_A)) / Coils_A * in2mm;
+        Standard_Real middleHelixPitch = (L_Free - Wire_Dia * (Coils_T - Coils_A)) / Coils_A;
         Standard_Real middleHelixHypotenuse = sqrt((2.0 * M_PI * 2.0 * M_PI) + (middleHelixPitch * middleHelixPitch));
         Standard_Real middleHelixHeight = middleHelixCoils * middleHelixPitch;
         std::cout << "middleHelixCoils=" << middleHelixCoils << std::endl;
@@ -127,8 +123,8 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "middleTransitionHeight=" << middleTransitionHeight << std::endl;
         std::cout << std::endl;
 
-        Standard_Real cutterWidth = OD_Free * in2mm;
-        Standard_Real cutterHeight = L_Free * in2mm;
+        Standard_Real cutterWidth = OD_Free;
+        Standard_Real cutterHeight = L_Free;
         std::cout << "cutterWidth=" << cutterWidth << std::endl;
         std::cout << "cutterHeight=" << cutterHeight << std::endl;
         std::cout << std::endl;

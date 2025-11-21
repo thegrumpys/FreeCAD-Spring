@@ -151,12 +151,13 @@ class CompressionSpring:
             FreeCAD.Console.PrintMessage(
                 f"[CompressionSpring.execute] SpringCpp target platform: {platform_name}\\n"
             )
+        mm_per_inch = 25.4
         spring = springocct.compression_spring_solid(
-            outer_diameter_in=1.1,
-            wire_diameter_in=0.1055,
-            free_length_in=3.25,
-            total_coils=16.0,
-            end_type=3, # Closed
+            outer_diameter_in=obj.OutsideDiameterAtFree / mm_per_inch,
+            wire_diameter_in=obj.WireDiameter / mm_per_inch,
+            free_length_in=obj.LengthAtFree / mm_per_inch,
+            total_coils=obj.CoilsTotal,
+            end_type=SpringUtils.end_type_index(getattr(obj, "EndType", None)),
             level_of_detail=20,
         )
         FreeCAD.Console.PrintMessage(
