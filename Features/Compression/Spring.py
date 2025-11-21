@@ -8,6 +8,11 @@ from .. import Utils as CoreUtils
 from ..ViewProviderSpring import ViewProviderSpring
 from . import Utils as SpringUtils
 
+try:
+    import springocct
+except ImportError as exc:
+    springocct = None
+    FreeCAD.Console.PrintError(f"springocct unavailable: {exc}\n")
 
 def _log_console(message: str) -> None:
     FreeCAD.Console.PrintMessage(message)
@@ -146,13 +151,17 @@ class CompressionSpring:
             FreeCAD.Console.PrintMessage(
                 f"[CompressionSpring.execute] SpringCpp target platform: {platform_name}\\n"
             )
-        spring = SpringUtils.spring_solid(
-            obj.MeanDiameterAtFree,
-            obj.WireDiameter,
-            obj.CoilsTotal,
-            obj.CoilsInactive,
-            obj.EndType,
-            obj.LengthAtFree
+        spring = springocct.compression_spring_solid(
+            outer_diameter_in=1.1,
+            wire_diameter_in=0.1055,
+            free_length_in=3.25,
+            total_coils=16.0,
+            end_type=3, # Closed
+            level_of_detail=20,
+        )
+        FreeCAD.Console.PrintMessage(
+            "springocct compression_spring_solid: "
+            f"return: {spring}\n"
         )
         obj.Shape = spring
         # FreeCAD.ActiveDocument.ActiveObject can be None when recomputing the object,
