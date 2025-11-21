@@ -23,8 +23,6 @@
 #include <gp_Circ.hxx>
 #include <iostream>
 
-#include "compression_spring_solid.hpp"
-
 TopoDS_Shape compression_spring_solid(
     double outer_diameter_in,
     double wire_diameter_in,

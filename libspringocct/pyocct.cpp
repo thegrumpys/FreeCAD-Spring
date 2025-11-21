@@ -30,12 +30,6 @@
 
 #include <Standard_Handle.hxx>
 
-struct check_pyobject_type {
-    check_pyobject_type() {
-        std::cout << "C++ thinks PyObject is: " << typeid(PyObject).name() << "\n";
-    }
-} check_instance;
-
 namespace py = pybind11;
 
 PYBIND11_DECLARE_HOLDER_TYPE(T, opencascade::handle<T>);
@@ -227,22 +221,15 @@ PYBIND11_MODULE(springocct, m)
         "Compute the distance between two points"
     );
 
-    std::cout << "[springocct] module init\n";
-
     m.def("compression_spring_solid", []() -> TopoDS_Shape {
-        std::cout << "[springocct] compression_spring_solid binding called\n";
-
         TopoDS_Shape result = compression_spring_solid(
           1.1, // OD_Free
-          0.1055 // Wire_Dia
+          0.1055, // Wire_Dia
           3.25, // L_Free
           16.0, // Coils_T
           3, // End_Types::Closed;
           20 // LevelOfDetail
         );
-
-        std::cout << "[springocct] compression_spring_solid result created" << "\n";
-
         return result;
     });
 }
