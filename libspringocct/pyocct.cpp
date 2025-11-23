@@ -230,9 +230,9 @@ PYBIND11_MODULE(springocct, m)
            int end_type,
            double level_of_detail) -> py::object {
             TopoDS_Shape shape = compression_spring_solid(
-                outer_diameter_in,
-                wire_diameter_in,
-                free_length_in,
+                outer_diameter,
+                wire_diameter,
+                free_length,
                 total_coils,
                 end_type,
                 level_of_detail);
