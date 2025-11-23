@@ -1,5 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
     <qresource>
         <file>icons/SpringWorkbench.svg</file>
+        <file>icons/Spring_MakeCompressionSpring.svg</file>
     </qresource>
 </RCC>

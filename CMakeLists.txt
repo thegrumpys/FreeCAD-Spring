@@ -16,6 +16,7 @@ SOURCE_GROUP("" FILES ${Spring_SRCS})
 
 SET(SpringGuiIcon_SVG
     Resources/icons/SpringWorkbench.svg
+    Resources/icons/Spring_MakeCompressionSpring.svg
 )
 
 ADD_CUSTOM_TARGET(Spring ALL

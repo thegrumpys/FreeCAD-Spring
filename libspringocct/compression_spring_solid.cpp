@@ -28,11 +28,11 @@ TopoDS_Shape compression_spring_solid(
     double wire_diameter,
     double free_length,
     double total_coils,
-    int end_type,
-    double level_of_detail)
+    double inactive_coils,
+    int end_type)
 {
 
-    std::cout << "Starting OCCSample" << std::endl;
+    std::cout << "Starting compression_spring_solid" << std::endl;
 
     TopoDS_Shape compressionSpring;
     try {
@@ -60,16 +60,16 @@ TopoDS_Shape compression_spring_solid(
         std::cout << std::endl;
 
         Standard_Real Mean_Dia = OD_Free - Wire_Dia;
-        Standard_Real Coils_A = Coils_T - 6.0;
+        Standard_Real Coils_A = Coils_T - inactive_coils;
         std::cout << "Mean_Dia=" << Mean_Dia << std::endl;
         std::cout << "Coils_A=" << Coils_A << std::endl;
         std::cout << std::endl;
 
-        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
-        Standard_Real LinearDeflection = Mean_Dia/LevelOfDetail;
-        std::cout << "LevelOfDetail=" << LevelOfDetail << std::endl;
-        std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
-        std::cout << std::endl;
+//        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
+//        Standard_Real LinearDeflection = Mean_Dia/LevelOfDetail;
+//        std::cout << "LevelOfDetail=" << LevelOfDetail << std::endl;
+//        std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
+//        std::cout << std::endl;
 
         Standard_Real profileRadius = Wire_Dia / 2.0;
         Standard_Real helixRadius = Mean_Dia / 2.0;
@@ -368,6 +368,6 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "int &err=" << err << std::endl;
     }
 
-    std::cout << "Ending OCCSample" << std::endl;
+    std::cout << "Ending compression_spring_solid" << std::endl;
     return compressionSpring;
 }

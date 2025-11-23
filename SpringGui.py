@@ -19,12 +19,12 @@ class MakeCompressionSpring:
             return
 
         value = springocct.compression_spring_solid(
-            outer_diameter=1.1,
-            wire_diameter=0.1055,
-            free_length=3.25,
+            outer_diameter=28.00,
+            wire_diameter=2.800,
+            free_length=80.00,
             total_coils=16.0,
+            inactive_coils=6.0,
             end_type=3, # Closed
-            level_of_detail=20,
         )
         FreeCAD.Console.PrintMessage(
             "springocct compression_spring_solid: "
