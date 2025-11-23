@@ -23,7 +23,7 @@
 #include <gp_Vec.hxx>
 #include <gp_Vec2d.hxx>
 
-#include <Mod/Part/App/TopoShape.h>
+#include <Mod/Part/App/PartPyCXX.h>
 
 #include <string>
 #include <stdexcept>
@@ -228,14 +228,19 @@ PYBIND11_MODULE(springocct, m)
            double free_length_in,
            double total_coils,
            int end_type,
-           double level_of_detail) {
-            return compression_spring_solid(
+           double level_of_detail) -> py::object {
+            TopoDS_Shape shape = compression_spring_solid(
                 outer_diameter_in,
                 wire_diameter_in,
                 free_length_in,
                 total_coils,
                 end_type,
                 level_of_detail);
+
+            Py::Object pyShape = Part::shape2pyshape(shape);
+            PyObject* owned = pyShape.ptr();
+            Py_INCREF(owned);
+            return py::reinterpret_steal<py::object>(owned);
         },
         py::arg("outer_diameter_in"),
         py::arg("wire_diameter_in"),
