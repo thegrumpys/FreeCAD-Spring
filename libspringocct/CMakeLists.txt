@@ -55,7 +55,7 @@ add_library(
 )
 
 if(MSVC)
-    set(springarea_native_LIBS
+    set(springocct_native_LIBS
         debug MSVCRTD.LIB
         debug MSVCPRTD.LIB
         optimized MSVCRT.LIB
@@ -64,7 +64,7 @@ if(MSVC)
 
     #Universal C runtime introduced in VS 2015 (cl version 19)
     if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19"))
-        list(APPEND springarea_native_LIBS
+        list(APPEND springocct_native_LIBS
             debug vcruntimed.lib
             debug ucrtd.lib
             optimized vcruntime.lib
@@ -72,39 +72,39 @@ if(MSVC)
         )
     endif()
 
-    set(springarea_LIBS
+    set(springocct_LIBS
         ${Boost_LIBRARIES}
-        ${springarea_native_LIBS}
+        ${springocct_native_LIBS}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
+        list(APPEND springocct_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 elseif(MINGW)
-    set(springarea_native_LIBS
+    set(springocct_native_LIBS
         Rpcrt4.lib
     )
-    set(springarea_LIBS
+    set(springocct_LIBS
         ${Boost_LIBRARIES}
-        ${springarea_native_LIBS}
+        ${springocct_native_LIBS}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
+        list(APPEND springocct_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 else(MSVC)
-    set(springarea_native_LIBS
+    set(springocct_native_LIBS
         )
-    set(springarea_LIBS
+    set(springocct_LIBS
         ${Boost_LIBRARIES}
     )
     if(BUILD_DYNAMIC_LINK_PYTHON)
-        list(APPEND springarea_LIBS ${Python3_LIBRARIES})
+        list(APPEND springocct_LIBS ${Python3_LIBRARIES})
     endif(BUILD_DYNAMIC_LINK_PYTHON)
 endif(MSVC)
 
-target_link_libraries(springocct-native ${springarea_native_LIBS} Import)
+target_link_libraries(springocct-native ${springocct_native_LIBS} Import)
 SET_BIN_DIR(springocct-native springocct-native /Mod/Spring)
 
-target_link_libraries(springocct springocct-native ${springarea_LIBS} ${springarea_native_LIBS})
+target_link_libraries(springocct springocct-native ${springocct_LIBS} ${springocct_native_LIBS})
 
 # TODO why CMAKE_SHARED_LINKER_FLAGS is not used here?
 # This is a dirty workaround!
