@@ -223,9 +223,9 @@ PYBIND11_MODULE(springocct, m)
 
     m.def(
         "compression_spring_solid",
-        [](double outer_diameter_in,
-           double wire_diameter_in,
-           double free_length_in,
+        [](double outer_diameter,
+           double wire_diameter,
+           double free_length,
            double total_coils,
            int end_type,
            double level_of_detail) -> py::object {
@@ -242,9 +242,9 @@ PYBIND11_MODULE(springocct, m)
             Py_INCREF(owned);
             return py::reinterpret_steal<py::object>(owned);
         },
-        py::arg("outer_diameter_in"),
-        py::arg("wire_diameter_in"),
-        py::arg("free_length_in"),
+        py::arg("outer_diameter"),
+        py::arg("wire_diameter"),
+        py::arg("free_length"),
         py::arg("total_coils"),
         py::arg("end_type"),
         py::arg("level_of_detail"));
