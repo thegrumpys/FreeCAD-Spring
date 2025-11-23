@@ -5,11 +5,9 @@
 
   <description>Design and analyze **compression**, **extension**, and **torsion** springs</description>
 
-  <version>6.2.0</version>
+  <version>0.1.0</version>
 
   <date>2025-10-20</date>
-
-  <maintainer email="bwatt@1fifoto.com">Brian D. Watt</maintainer>
 
   <maintainer email="Info@SpringDesignSoftware.org">Michael Milley</maintainer>
 
