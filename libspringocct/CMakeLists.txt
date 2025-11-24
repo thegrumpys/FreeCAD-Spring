@@ -22,13 +22,12 @@ include_directories(${pybind11_INCLUDE_DIR})
 
 # this defines the source-files for library
 set(SPRINGOCCT_SRC_NATIVE
-    Pnt2dNative.cpp
     compression_spring_solid.cpp
 )
 
 # this defines the additional source-files for python module (wrapper to libspringocct)
 set(PYSPRINGOCCT_SRC
-    pyocct.cpp
+    pyspringocct.cpp
 )
 
 # this defines the headers

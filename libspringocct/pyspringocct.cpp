@@ -6,7 +6,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
-#include "Pnt2dNative.hpp"
+#include "compression_spring_solid.hpp"
 
 #include <GCE2d_MakeLine.hxx>
 #include <Geom2d_Line.hxx>
@@ -214,28 +214,20 @@ PYBIND11_MODULE(springocct, m)
         });
 
     m.def(
-        "distance",
-        &Distance2d,
-        py::arg("first"),
-        py::arg("second"),
-        "Compute the distance between two points"
-    );
-
-    m.def(
         "compression_spring_solid",
         [](double outer_diameter,
            double wire_diameter,
            double free_length,
            double total_coils,
-           int end_type,
-           double level_of_detail) -> py::object {
+           double inactive_coils,
+           int end_type) -> py::object {
             TopoDS_Shape shape = compression_spring_solid(
                 outer_diameter,
                 wire_diameter,
                 free_length,
                 total_coils,
-                end_type,
-                level_of_detail);
+                inactive_coils,
+                end_type);
 
             Py::Object pyShape = Part::shape2pyshape(shape);
             PyObject* owned = pyShape.ptr();
@@ -246,6 +238,6 @@ PYBIND11_MODULE(springocct, m)
         py::arg("wire_diameter"),
         py::arg("free_length"),
         py::arg("total_coils"),
-        py::arg("end_type"),
-        py::arg("level_of_detail"));
+        py::arg("inactive_coils"),
+        py::arg("end_type"));
 }

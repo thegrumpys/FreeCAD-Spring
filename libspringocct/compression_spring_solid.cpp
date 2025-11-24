@@ -28,11 +28,11 @@ TopoDS_Shape compression_spring_solid(
     double wire_diameter,
     double free_length,
     double total_coils,
-    int end_type,
-    double level_of_detail)
+    double inactive_coils,
+    int end_type)
 {
 
-    std::cout << "Starting OCCSample" << std::endl;
+    std::cout << "Starting compression_spring_solid" << std::endl;
 
     TopoDS_Shape compressionSpring;
     try {
@@ -60,16 +60,16 @@ TopoDS_Shape compression_spring_solid(
         std::cout << std::endl;
 
         Standard_Real Mean_Dia = OD_Free - Wire_Dia;
-        Standard_Real Coils_A = Coils_T - 6.0;
+        Standard_Real Coils_A = Coils_T - inactive_coils;
         std::cout << "Mean_Dia=" << Mean_Dia << std::endl;
         std::cout << "Coils_A=" << Coils_A << std::endl;
         std::cout << std::endl;
 
-        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
-        Standard_Real LinearDeflection = Mean_Dia/LevelOfDetail;
-        std::cout << "LevelOfDetail=" << LevelOfDetail << std::endl;
-        std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
-        std::cout << std::endl;
+//        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
+//        Standard_Real LinearDeflection = Mean_Dia/LevelOfDetail;
+//        std::cout << "LevelOfDetail=" << LevelOfDetail << std::endl;
+//        std::cout << "LinearDeflection=" << LinearDeflection << std::endl;
+//        std::cout << std::endl;
 
         Standard_Real profileRadius = Wire_Dia / 2.0;
         Standard_Real helixRadius = Mean_Dia / 2.0;
@@ -77,7 +77,7 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "helixRadius=" << helixRadius << std::endl;
         std::cout << std::endl;
 
-        Standard_Real closedHelixCoils = (Coils_T - Coils_A) / 2.0;
+        Standard_Real closedHelixCoils = (Coils_T - Coils_A) / 2.0; // Split between top and bottom
         Standard_Real closedHelixPitch = Wire_Dia;
         Standard_Real closedHelixHypotenuse = sqrt((2.0 * M_PI * 2.0 * M_PI) + (closedHelixPitch * closedHelixPitch));
         Standard_Real closedHelixHeight = closedHelixCoils * closedHelixPitch;
@@ -200,33 +200,6 @@ TopoDS_Shape compression_spring_solid(
             std::cout << std::endl;
         }
 
-        /* ******************** */
-        /* Create Ground Cutter */
-        /* ******************** */
-
-        TopoDS_Shape helixCutter;
-        if (End_Type == End_Types::Open_Ground || End_Type == End_Types::Closed_Ground) {
-            // Create Bottom Cutter Box
-            std::cout << "Create Bottom Cutter Box" << std::endl;
-            BRepPrimAPI_MakeBox bottomHelixBox(cutterWidth, cutterWidth, closedHelixPitch);
-            const TopoDS_Shape& bottomHelixCutter = bottomHelixBox.Shape();
-            gp_Trsf bottomTrsf;
-            bottomTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, -closedHelixPitch));
-            TopoDS_Shape bottomHelixCutterTransformed = BRepBuilderAPI_Transform(bottomHelixCutter, bottomTrsf);
-
-            // Create Top Cutter Box
-            std::cout << "Create Top Cutter Box" << std::endl;
-            BRepPrimAPI_MakeBox topHelixBox(cutterWidth, cutterWidth, closedHelixPitch);
-            const TopoDS_Shape& topHelixCutter = bottomHelixBox.Shape();
-            gp_Trsf topTrsf;
-            topTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, cutterHeight));
-            TopoDS_Shape topHelixCutterTransformed = BRepBuilderAPI_Transform(topHelixCutter, topTrsf);
-
-            // Fuse Bottom and Top Cutter Boxes
-            helixCutter = BRepAlgoAPI_Fuse(bottomHelixCutterTransformed, topHelixCutterTransformed);
-            std::cout << std::endl;
-        }
-
         /* ******************* */
         /* Create Middle Helix */
         /* ******************* */
@@ -326,6 +299,33 @@ TopoDS_Shape compression_spring_solid(
         Standard_Boolean flag = helixPipe.MakeSolid();
         std::cout << "MakeSolid flag=" << (flag==true ? "success" : "fail") << std::endl;
 
+        /* ******************** */
+        /* Create Ground Cutter */
+        /* ******************** */
+
+        TopoDS_Shape helixCutter;
+        if (End_Type == End_Types::Open_Ground || End_Type == End_Types::Closed_Ground) {
+            // Create Bottom Cutter Box
+            std::cout << "Create Bottom Cutter Box" << std::endl;
+            BRepPrimAPI_MakeBox bottomHelixBox(cutterWidth, cutterWidth, closedHelixPitch);
+            const TopoDS_Shape& bottomHelixCutter = bottomHelixBox.Shape();
+            gp_Trsf bottomTrsf;
+            bottomTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, -closedHelixPitch));
+            TopoDS_Shape bottomHelixCutterTransformed = BRepBuilderAPI_Transform(bottomHelixCutter, bottomTrsf);
+
+            // Create Top Cutter Box
+            std::cout << "Create Top Cutter Box" << std::endl;
+            BRepPrimAPI_MakeBox topHelixBox(cutterWidth, cutterWidth, closedHelixPitch);
+            const TopoDS_Shape& topHelixCutter = bottomHelixBox.Shape();
+            gp_Trsf topTrsf;
+            topTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, cutterHeight));
+            TopoDS_Shape topHelixCutterTransformed = BRepBuilderAPI_Transform(topHelixCutter, topTrsf);
+
+            // Fuse Bottom and Top Cutter Boxes
+            helixCutter = BRepAlgoAPI_Fuse(bottomHelixCutterTransformed, topHelixCutterTransformed);
+            std::cout << std::endl;
+        }
+
         /* *********************************************************** */
         /* Form Compression Spring from Helix Pipe minus Helix Cutters */
         /* *********************************************************** */
@@ -368,6 +368,6 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "int &err=" << err << std::endl;
     }
 
-    std::cout << "Ending OCCSample" << std::endl;
+    std::cout << "Ending compression_spring_solid" << std::endl;
     return compressionSpring;
 }

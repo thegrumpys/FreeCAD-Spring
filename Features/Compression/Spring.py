@@ -21,52 +21,6 @@ def _log_console(message: str) -> None:
     except Exception:
         pass
 
-
-_SPRINGCPP = sys.modules.get("SpringCpp")
-if _SPRINGCPP is None:
-    _spec = importlib.util.find_spec("SpringCpp")
-    if _spec is not None:
-        origin = getattr(_spec, "origin", None)
-        locations = getattr(_spec, "submodule_search_locations", None)
-        _log_console(
-            f"[CompressionSpring] Importing SpringCpp binding for diagnostics. "
-            f"origin={origin!r} locations={list(locations) if locations else None}\n"
-        )
-        try:
-            _SPRINGCPP = importlib.import_module("SpringCpp")
-        except ImportError as exc:
-            _SPRINGCPP = None
-            _log_console(
-                f"[CompressionSpring] SpringCpp binding import failed. error={exc!r}\n"
-            )
-        else:
-            module_file = getattr(_SPRINGCPP, "__file__", None)
-            has_log = hasattr(_SPRINGCPP, "log_target_platform")
-            _log_console(
-                f"[CompressionSpring] SpringCpp binding import completed. "
-                f"file={module_file!r} has_log_target_platform={has_log}\n"
-            )
-    else:
-        preview_path = ":".join(sys.path[:5])
-        _log_console(
-            f"[CompressionSpring] SpringCpp binding not available. "
-            f"First sys.path entries: {preview_path}\n"
-        )
-else:
-    module_file = getattr(_SPRINGCPP, "__file__", None)
-    _log_console(
-        f"[CompressionSpring] SpringCpp binding already loaded; skipping import. "
-        f"file={module_file!r}\n"
-    )
-
-if _SPRINGCPP is not None and not hasattr(_SPRINGCPP, "log_target_platform"):
-    attrs = sorted(getattr(_SPRINGCPP, "__dict__", {}).keys())
-    preview_attrs = ", ".join(attrs[:5])
-    _log_console(
-        f"[CompressionSpring] SpringCpp module loaded but missing 'log_target_platform'. "
-        f"attrs sample: {preview_attrs}\n"
-    )
-
 class CompressionSpring:
     def __init__(self, obj):
 #        FreeCAD.Console.PrintMessage(f"[CompressionSpring.__init__] self={self} obj={obj}\n")
@@ -145,20 +99,13 @@ class CompressionSpring:
     def execute(self, obj):
         FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
 
-        print("\nExecuting CompressionSpring Feature...")
-        if _SPRINGCPP is not None and hasattr(_SPRINGCPP, "log_target_platform"):
-            platform_name = _SPRINGCPP.log_target_platform()
-            FreeCAD.Console.PrintMessage(
-                f"[CompressionSpring.execute] SpringCpp target platform: {platform_name}\\n"
-            )
-        mm_per_inch = 25.4
         spring = springocct.compression_spring_solid(
-            outer_diameter_in=obj.OutsideDiameterAtFree / mm_per_inch,
-            wire_diameter_in=obj.WireDiameter / mm_per_inch,
-            free_length_in=obj.LengthAtFree / mm_per_inch,
+            outer_diameter=obj.OutsideDiameterAtFree,
+            wire_diameter=obj.WireDiameter,
+            free_length=obj.LengthAtFree,
             total_coils=obj.CoilsTotal,
+            inactive_coils=obj.CoilsInactive,
             end_type=SpringUtils.end_type_index(getattr(obj, "EndType", None)),
-            level_of_detail=20,
         )
         FreeCAD.Console.PrintMessage(
             "springocct compression_spring_solid: "
