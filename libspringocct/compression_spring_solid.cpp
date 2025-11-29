@@ -110,6 +110,216 @@ inline std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
+// Returns an arc tangent at P1 and P2.
+// If L1 and L2 are parallel, returns a straight segment instead.
+// Returns NULL only if something numerically degenerates.
+inline Handle(Geom2d_TrimmedCurve)
+MakeTangentialArcOrLine(const gp_Pnt2d& P1,
+                        const gp_Lin2d& L1,
+                        const gp_Pnt2d& P2,
+                        const gp_Lin2d& L2,
+                        const Standard_Real parallelTol = 1e-12)
+{
+   std::cout << "========== MakeTangentialArcOrLine DEBUG ==========\n";
+
+    std::cout << "Input P1 = " << P1 << "\n";
+    std::cout << "Input L1 = " << L1 << "\n";
+    std::cout << "Input P2 = " << P2 << "\n";
+    std::cout << "Input L2 = " << L2 << "\n\n";
+
+    // Directions
+    gp_Dir2d d1 = L1.Direction();
+    gp_Dir2d d2 = L2.Direction();
+
+    std::cout << "d1 = (" << d1.X() << ", " << d1.Y() << ")\n";
+    std::cout << "d2 = (" << d2.X() << ", " << d2.Y() << ")\n";
+
+    double cross = d1.X() * d2.Y() - d1.Y() * d2.X();
+    std::cout << "cross(d1,d2) = " << cross << "\n";
+
+    // Parallel case
+    if (std::abs(cross) < parallelTol)
+    {
+        std::cout << "LINES PARALLEL → returning straight segment\n";
+
+        Handle(Geom2d_Line) gline = new Geom2d_Line(P1, d1);
+
+        Standard_Real u1 = ElCLib::Parameter(gline->Lin2d(), P1);
+        Standard_Real u2 = ElCLib::Parameter(gline->Lin2d(), P2);
+
+        std::cout << "u1 = " << u1 << "  u2 = " << u2 << "\n";
+        std::cout << "===================================================\n";
+
+        return new Geom2d_TrimmedCurve(gline, u1, u2);
+    }
+
+    // Normals
+    gp_Dir2d n1(-d1.Y(), d1.X());
+    gp_Dir2d n2(-d2.Y(), d2.X());
+
+    std::cout << "n1 = (" << n1.X() << ", " << n1.Y() << ")\n";
+    std::cout << "n2 = (" << n2.X() << ", " << n2.Y() << ")\n";
+
+    // Solve P1 + t*n1 = P2 + s*n2
+    double A11 = n1.X();
+    double A12 = -n2.X();
+    double A21 = n1.Y();
+    double A22 = -n2.Y();
+
+    double B1 = P2.X() - P1.X();
+    double B2 = P2.Y() - P1.Y();
+
+    std::cout << "A11=" << A11 << "  A12=" << A12 << "\n";
+    std::cout << "A21=" << A21 << "  A22=" << A22 << "\n";
+    std::cout << "B1=" << B1 << "  B2=" << B2 << "\n";
+
+    double det = A11 * A22 - A12 * A21;
+    std::cout << "det = " << det << "\n";
+
+    if (std::abs(det) < parallelTol)
+    {
+        std::cout << "DEGENERATE: normals nearly parallel\n";
+        std::cout << "===================================================\n";
+        return nullptr;
+    }
+
+    double invDet = 1.0 / det;
+    double t = ( B1 * A22 - B2 * A12 ) * invDet;
+    double s = ( A11 * B2 - A21 * B1 ) * invDet;
+
+    std::cout << "t = " << t << "\n";
+    std::cout << "s = " << s << "\n";
+
+    // Center
+    double Cx = P1.X() + t * n1.X();
+    double Cy = P1.Y() + t * n1.Y();
+    gp_Pnt2d Center(Cx, Cy);
+
+    std::cout << "Center = " << Center << "\n";
+
+    // Radius from P1
+    double dx1 = P1.X() - Cx;
+    double dy1 = P1.Y() - Cy;
+    double R1 = std::sqrt(dx1*dx1 + dy1*dy1);
+
+    // Radius from P2
+    double dx2 = P2.X() - Cx;
+    double dy2 = P2.Y() - Cy;
+    double R2 = std::sqrt(dx2*dx2 + dy2*dy2);
+
+    std::cout << "R1 (center->P1) = " << R1 << "\n";
+    std::cout << "R2 (center->P2) = " << R2 << "\n";
+    std::cout << "ΔR = " << std::abs(R1 - R2) << "\n";
+
+    // Build circle
+    gp_Ax2d axis(Center, gp_Dir2d(1.0, 0.0)); 
+    gp_Circ2d circ(axis, R1);
+    Handle(Geom2d_Circle) geomCirc = new Geom2d_Circle(circ);
+
+    // Parameters
+    Standard_Real u1 = ElCLib::Parameter(circ, P1);
+    Standard_Real u2 = ElCLib::Parameter(circ, P2);
+
+    std::cout << "u1 = " << u1 << "\n";
+    std::cout << "u2 = " << u2 << "\n";
+
+    Handle(Geom2d_TrimmedCurve) arc =
+        new Geom2d_TrimmedCurve(geomCirc, u1, u2);
+
+    std::cout << "Arc created. Evaluated End: "
+              << arc->Value(u2) << "\n";
+
+    std::cout << "===================================================\n";
+    return arc;
+}
+
+inline gp_Pnt2d ComputeSymmetricP2(
+    const gp_Pnt2d& P1,     // point on L1
+    const gp_Lin2d& L1,
+    const gp_Lin2d& L2,
+    const Standard_Real parallelTol = 1e-12)
+{
+    std::cout << "========== ComputeSymmetricP2 DEBUG ==========\n";
+
+    std::cout << "Input P1 = " << P1 << "\n";
+    std::cout << "Input L1 = " << L1 << "\n";
+    std::cout << "Input L2 = " << L2 << "\n\n";
+
+    gp_Pnt2d P0 = L1.Location();
+    gp_Dir2d d1 = L1.Direction();
+
+    gp_Pnt2d Q0 = L2.Location();
+    gp_Dir2d d2 = L2.Direction();
+
+    std::cout << "L1.Location = " << P0 << "\n";
+    std::cout << "L1.Direction d1 = (" << d1.X() << ", " << d1.Y() << ")\n";
+
+    std::cout << "L2.Location = " << Q0 << "\n";
+    std::cout << "L2.Direction d2 = (" << d2.X() << ", " << d2.Y() << ")\n\n";
+
+    // Solve intersection of P0 + t*d1 = Q0 + s*d2
+    Standard_Real A11 = d1.X();
+    Standard_Real A12 = -d2.X();
+    Standard_Real A21 = d1.Y();
+    Standard_Real A22 = -d2.Y();
+
+    std::cout << "Matrix A:\n";
+    std::cout << "  A11 = " << A11 << "   A12 = " << A12 << "\n";
+    std::cout << "  A21 = " << A21 << "   A22 = " << A22 << "\n";
+
+    Standard_Real B1 = Q0.X() - P0.X();
+    Standard_Real B2 = Q0.Y() - P0.Y();
+
+    std::cout << "Vector B:\n";
+    std::cout << "  B1 = " << B1 << "\n";
+    std::cout << "  B2 = " << B2 << "\n";
+
+    Standard_Real det = A11*A22 - A12*A21;
+
+    std::cout << "det = " << det << "\n";
+
+    if (std::abs(det) < parallelTol)
+    {
+        std::cout << "LINES PARALLEL → no intersection → fallback point returned.\n";
+        std::cout << "===========================================================\n";
+        return Q0;  // fallback: return base of L2
+    }
+
+    Standard_Real invDet = 1.0 / det;
+    Standard_Real t = ( B1*A22 - B2*A12 ) * invDet;
+
+    std::cout << "t (param on L1) = " << t << "\n";
+
+    // Intersection point I = P0 + t*d1
+    gp_Pnt2d I(
+        P0.X() + t * d1.X(),
+        P0.Y() + t * d1.Y()
+    );
+
+    std::cout << "Intersection I = " << I << "\n\n";
+
+    // Compute signed distance s from I to P1 along L1
+    Standard_Real vx = P1.X() - I.X();
+    Standard_Real vy = P1.Y() - I.Y();
+
+    std::cout << "Vector I→P1 = (" << vx << ", " << vy << ")\n";
+
+    Standard_Real s = vx*d1.X() + vy*d1.Y();
+
+    std::cout << "Signed distance s = (I→P1)·d1 = " << s << "\n\n";
+
+    // Compute symmetric point P2 = I + s*d2
+    gp_Pnt2d P2(
+        I.X() + s * d2.X(),
+        I.Y() + s * d2.Y()
+    );
+
+    std::cout << "Computed symmetric P2 = " << P2 << "\n";
+    std::cout << "============ END ComputeSymmetricP2 DEBUG ===============\n\n";
+
+    return P2;
+}
+
 TopoDS_Shape compression_spring_solid(
     double outer_diameter,
     double wire_diameter,
@@ -174,7 +384,7 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "closedHelixHeight=" << closedHelixHeight << std::endl;
         std::cout << std::endl;
 
-        Standard_Real transitionCoils = 1.0;
+        Standard_Real transitionCoils = 0.5;
         std::cout << "transitionCoils=" << transitionCoils << std::endl;
         std::cout << std::endl;
 
@@ -244,7 +454,9 @@ TopoDS_Shape compression_spring_solid(
             // Create Bottom Helix
             std::cout << "Create Bottom Helix" << std::endl;
             gp_Pnt2d bottomHelixP1(u, v);
+            std::cout << "bottomHelixP1=" << bottomHelixP1 << std::endl; // @@@ DUMP @@@
             gp_Pnt2d bottomHelixP2(u + closedHelixCoils * 2. * M_PI, v + closedHelixCoils * closedHelixPitch);
+            std::cout << "bottomHelixP2=" << bottomHelixP2 << std::endl; // @@@ DUMP @@@
             Handle(Geom2d_Line) bottomHelixLine = GCE2d_MakeLine(bottomHelixP1, bottomHelixP2);
             std::cout << "bottomHelixLine=" << bottomHelixLine << std::endl; // @@@ DUMP @@@
             Handle(Geom2d_TrimmedCurve) bottomHelixSegment = new Geom2d_TrimmedCurve(bottomHelixLine, ElCLib::Parameter(bottomHelixLine->Lin2d(), bottomHelixP1), ElCLib::Parameter(bottomHelixLine->Lin2d(), bottomHelixP2));
@@ -266,7 +478,16 @@ TopoDS_Shape compression_spring_solid(
             // Create Bottom Transition
             std::cout << "Create Bottom Transition" << std::endl;
             gp_Pnt2d bottomTransitionP1(u, v);
+            std::cout << "bottomTransitionP1=" << bottomTransitionP1 << std::endl; // @@@ DUMP @@@
             gp_Pnt2d bottomTransitionP2(u + transitionCoils * 2.0 * M_PI, v + transitionCoils * middleHelixPitch);
+            std::cout << "bottomTransitionP2=" << bottomTransitionP2 << std::endl; // @@@ DUMP @@@
+//====================================
+//            Handle(Geom2d_Line) bottomTransitionLine = GCE2d_MakeLine(bottomTransitionP1, bottomTransitionP2);
+//            std::cout << "bottomTransitionLine=" << bottomTransitionLine << std::endl; // @@@ DUMP @@@
+//            gp_Pnt2d symmetricP2 = ComputeSymmetricP2(bottomHelixP2, bottomHelixLine->Lin2d(), bottomTransitionLine->Lin2d());
+//            std::cout << "symmetricP2=" << symmetricP2 << std::endl;
+//            Handle(Geom2d_TrimmedCurve) bottomTransitionSegment = MakeTangentialArcOrLine(bottomHelixP2, bottomHelixLine->Lin2d(), symmetricP2, bottomTransitionLine->Lin2d());
+//====================================
             Handle(Geom2d_TrimmedCurve) bottomTransitionSegment = GCE2d_MakeArcOfCircle(bottomTransitionP1, gp_Vec2d(gp_Dir2d(2. * M_PI, closedHelixPitch)), bottomTransitionP2);
             std::cout << "bottomTransitionSegment=" << bottomTransitionSegment << std::endl; // @@@ DUMP @@@
             bottomTransitionEdge = BRepBuilderAPI_MakeEdge(bottomTransitionSegment, helixCylinder).Edge();
@@ -298,7 +519,9 @@ TopoDS_Shape compression_spring_solid(
 //            middleHelixZ = 0.0;
 //        }
         gp_Pnt2d middleHelixP1(u, v);
+        std::cout << "middleHelixP1=" << middleHelixP1 << std::endl; // @@@ DUMP @@@
         gp_Pnt2d middleHelixP2(u + middleHelixCoils * 2. * M_PI, v + middleHelixCoils * middleHelixPitch);
+        std::cout << "middleHelixP2=" << middleHelixP2 << std::endl; // @@@ DUMP @@@
         Handle(Geom2d_Line) middleHelixLine = GCE2d_MakeLine(middleHelixP1, middleHelixP2);
         std::cout << "middleHelixLine=" << middleHelixLine << std::endl; // @@@ DUMP @@@
         Handle(Geom2d_TrimmedCurve) middleHelixSegment = new Geom2d_TrimmedCurve(middleHelixLine, ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP1), ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP2));
@@ -330,7 +553,9 @@ TopoDS_Shape compression_spring_solid(
             // Create Top Transition
             std::cout << "Create Top Transition" << std::endl;
             gp_Pnt2d topTransitionP1(u, v);
+            std::cout << "topTransitionP1=" << topTransitionP1 << std::endl; // @@@ DUMP @@@
             gp_Pnt2d topTransitionP2(u + transitionCoils * 2.0 * M_PI, v + transitionCoils * middleHelixPitch);
+            std::cout << "topTransitionP2=" << topTransitionP2 << std::endl; // @@@ DUMP @@@
             Handle(Geom2d_TrimmedCurve) topTransitionSegment = GCE2d_MakeArcOfCircle(topTransitionP1, gp_Vec2d(gp_Dir2d(-2. * M_PI, -closedHelixPitch)), topTransitionP2);
             std::cout << "topTransitionSegment=" << topTransitionSegment << std::endl; // @@@ DUMP @@@
             topTransitionEdge = BRepBuilderAPI_MakeEdge(topTransitionSegment, helixCylinder).Edge();
@@ -350,7 +575,9 @@ TopoDS_Shape compression_spring_solid(
             // Create Top Helix
             std::cout << "Create Top Helix" << std::endl;
             gp_Pnt2d topHelixP1(u, v);
+            std::cout << "topHelixP1=" << topHelixP1 << std::endl; // @@@ DUMP @@@
             gp_Pnt2d topHelixP2(u + closedHelixCoils * 2. * M_PI, v + closedHelixCoils * closedHelixPitch);
+            std::cout << "topHelixP2=" << topHelixP2 << std::endl; // @@@ DUMP @@@
             Handle(Geom2d_Line) topHelixLine = GCE2d_MakeLine(topHelixP1, topHelixP2);
             std::cout << "topHelixLine=" << topHelixLine << std::endl; // @@@ DUMP @@@
             Handle(Geom2d_TrimmedCurve) topHelixSegment = new Geom2d_TrimmedCurve(topHelixLine, ElCLib::Parameter(topHelixLine->Lin2d(), topHelixP1), ElCLib::Parameter(topHelixLine->Lin2d(), topHelixP2));
