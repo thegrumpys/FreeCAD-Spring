@@ -110,113 +110,156 @@ inline std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
-// Returns an arc tangent at P1 and P2.
-// If L1 and L2 are parallel, returns a straight segment instead.
-// Returns NULL only if something numerically degenerates.
 inline Handle(Geom2d_TrimmedCurve)
-MakeTangentialArcOrLine(const gp_Pnt2d& P1,
-                        const gp_Lin2d& L1,
-                        const gp_Pnt2d& P2,
-                        const gp_Lin2d& L2,
-                        const Standard_Real parallelTol = 1e-12)
+MakeTangentialArcOrLine(
+    const gp_Pnt2d& P1,     // fixed on L1
+    const gp_Lin2d& L1,
+    const gp_Lin2d& L2,
+    const Standard_Real parallelTol = 1e-12)
 {
-   std::cout << "========== MakeTangentialArcOrLine DEBUG ==========\n";
+    std::cout << "\n========== MakeTangentialArcOrLine DEBUG ==========\n";
 
     std::cout << "Input P1 = " << P1 << "\n";
     std::cout << "Input L1 = " << L1 << "\n";
-    std::cout << "Input P2 = " << P2 << "\n";
     std::cout << "Input L2 = " << L2 << "\n\n";
 
-    // Directions
+    // ---------------------------
+    // 1. Compute INTERSECTION I
+    // ---------------------------
+    gp_Pnt2d P0 = L1.Location();
     gp_Dir2d d1 = L1.Direction();
+
+    gp_Pnt2d Q0 = L2.Location();
     gp_Dir2d d2 = L2.Direction();
 
-    std::cout << "d1 = (" << d1.X() << ", " << d1.Y() << ")\n";
-    std::cout << "d2 = (" << d2.X() << ", " << d2.Y() << ")\n";
+    std::cout << "L1.Location = " << P0 << "\n";
+    std::cout << "L1.Direction d1=(" << d1.X() << "," << d1.Y() << ")\n";
+    std::cout << "L2.Location = " << Q0 << "\n";
+    std::cout << "L2.Direction d2=(" << d2.X() << "," << d2.Y() << ")\n\n";
 
-    double cross = d1.X() * d2.Y() - d1.Y() * d2.X();
-    std::cout << "cross(d1,d2) = " << cross << "\n";
+    Standard_Real A11 = d1.X();
+    Standard_Real A12 = -d2.X();
+    Standard_Real A21 = d1.Y();
+    Standard_Real A22 = -d2.Y();
 
-    // Parallel case
-    if (std::abs(cross) < parallelTol)
+    Standard_Real B1 = Q0.X() - P0.X();
+    Standard_Real B2 = Q0.Y() - P0.Y();
+
+    std::cout << "Solve intersection:\n";
+    std::cout << "A = [[" << A11 << "," << A12 << "], [" << A21 << "," << A22 << "]]\n";
+    std::cout << "B = [" << B1 << ", " << B2 << "]\n";
+
+    Standard_Real det = A11*A22 - A12*A21;
+    std::cout << "det = " << det << "\n";
+
+    gp_Pnt2d I;
+
+    if (std::abs(det) < parallelTol)
     {
-        std::cout << "LINES PARALLEL → returning straight segment\n";
+        std::cout << "LINES PARALLEL → no intersection → fallback to straight segment only.\n";
+        std::cout << "=====================================================================\n";
 
         Handle(Geom2d_Line) gline = new Geom2d_Line(P1, d1);
-
         Standard_Real u1 = ElCLib::Parameter(gline->Lin2d(), P1);
-        Standard_Real u2 = ElCLib::Parameter(gline->Lin2d(), P2);
-
-        std::cout << "u1 = " << u1 << "  u2 = " << u2 << "\n";
-        std::cout << "===================================================\n";
-
+        Standard_Real u2 = ElCLib::Parameter(gline->Lin2d(), Q0);
         return new Geom2d_TrimmedCurve(gline, u1, u2);
     }
+
+    Standard_Real invDet = 1.0 / det;
+    Standard_Real tI = ( B1*A22 - B2*A12 ) * invDet;
+
+    I = gp_Pnt2d(
+        P0.X() + tI*d1.X(),
+        P0.Y() + tI*d1.Y()
+    );
+
+    std::cout << "Intersection I = " << I << "\n\n";
+
+
+    // ---------------------------
+    // 2. Compute symmetric P2
+    // ---------------------------
+
+    Standard_Real vx = P1.X() - I.X();
+    Standard_Real vy = P1.Y() - I.Y();
+
+    std::cout << "Vector I→P1 = (" << vx << ", " << vy << ")\n";
+
+    Standard_Real s = vx*d1.X() + vy*d1.Y();
+
+    std::cout << "Signed distance s along L1 = " << s << "\n";
+
+    gp_Pnt2d P2(
+        I.X() + s*d2.X(),
+        I.Y() + s*d2.Y()
+    );
+
+    std::cout << "Symmetric P2 = " << P2 << "\n\n";
+
+
+    // ---------------------------
+    // 3. Build Tangential Arc (or line)
+    // ---------------------------
+    std::cout << "---- Building Tangential Arc ----\n";
 
     // Normals
     gp_Dir2d n1(-d1.Y(), d1.X());
     gp_Dir2d n2(-d2.Y(), d2.X());
 
-    std::cout << "n1 = (" << n1.X() << ", " << n1.Y() << ")\n";
-    std::cout << "n2 = (" << n2.X() << ", " << n2.Y() << ")\n";
+    std::cout << "n1=(" << n1.X() << "," << n1.Y() << ")\n";
+    std::cout << "n2=(" << n2.X() << "," << n2.Y() << ")\n";
 
-    // Solve P1 + t*n1 = P2 + s*n2
-    double A11 = n1.X();
-    double A12 = -n2.X();
-    double A21 = n1.Y();
-    double A22 = -n2.Y();
+    // Solve normal intersection for center
+    Standard_Real A11n = n1.X();
+    Standard_Real A12n = -n2.X();
+    Standard_Real A21n = n1.Y();
+    Standard_Real A22n = -n2.Y();
 
-    double B1 = P2.X() - P1.X();
-    double B2 = P2.Y() - P1.Y();
+    Standard_Real B1n = P2.X() - P1.X();
+    Standard_Real B2n = P2.Y() - P1.Y();
 
-    std::cout << "A11=" << A11 << "  A12=" << A12 << "\n";
-    std::cout << "A21=" << A21 << "  A22=" << A22 << "\n";
-    std::cout << "B1=" << B1 << "  B2=" << B2 << "\n";
+    Standard_Real detN = A11n*A22n - A12n*A21n;
 
-    double det = A11 * A22 - A12 * A21;
-    std::cout << "det = " << det << "\n";
+    std::cout << "det(normal system) = " << detN << "\n";
 
-    if (std::abs(det) < parallelTol)
+    if (std::abs(detN) < parallelTol)
     {
-        std::cout << "DEGENERATE: normals nearly parallel\n";
-        std::cout << "===================================================\n";
-        return nullptr;
+        std::cout << "Normals parallel → no tangent arc → straight line segment.\n";
+
+        Handle(Geom2d_Line) gline = new Geom2d_Line(P1, d1);
+        Standard_Real u1 = ElCLib::Parameter(gline->Lin2d(), P1);
+        Standard_Real u2 = ElCLib::Parameter(gline->Lin2d(), P2);
+        return new Geom2d_TrimmedCurve(gline, u1, u2);
     }
 
-    double invDet = 1.0 / det;
-    double t = ( B1 * A22 - B2 * A12 ) * invDet;
-    double s = ( A11 * B2 - A21 * B1 ) * invDet;
+    Standard_Real invDetN = 1.0 / detN;
 
-    std::cout << "t = " << t << "\n";
-    std::cout << "s = " << s << "\n";
+    Standard_Real tN = ( B1n*A22n - B2n*A12n ) * invDetN;
 
-    // Center
-    double Cx = P1.X() + t * n1.X();
-    double Cy = P1.Y() + t * n1.Y();
-    gp_Pnt2d Center(Cx, Cy);
+    gp_Pnt2d Center(
+        P1.X() + tN*n1.X(),
+        P1.Y() + tN*n1.Y()
+    );
 
     std::cout << "Center = " << Center << "\n";
 
-    // Radius from P1
-    double dx1 = P1.X() - Cx;
-    double dy1 = P1.Y() - Cy;
-    double R1 = std::sqrt(dx1*dx1 + dy1*dy1);
+    // Radii
+    Standard_Real dx1 = P1.X() - Center.X();
+    Standard_Real dy1 = P1.Y() - Center.Y();
+    Standard_Real R1 = std::sqrt(dx1*dx1 + dy1*dy1);
 
-    // Radius from P2
-    double dx2 = P2.X() - Cx;
-    double dy2 = P2.Y() - Cy;
-    double R2 = std::sqrt(dx2*dx2 + dy2*dy2);
+    Standard_Real dx2 = P2.X() - Center.X();
+    Standard_Real dy2 = P2.Y() - Center.Y();
+    Standard_Real R2 = std::sqrt(dx2*dx2 + dy2*dy2);
 
-    std::cout << "R1 (center->P1) = " << R1 << "\n";
-    std::cout << "R2 (center->P2) = " << R2 << "\n";
-    std::cout << "ΔR = " << std::abs(R1 - R2) << "\n";
+    std::cout << "R1 = " << R1 << "   R2 = " << R2
+              << "   ΔR = " << std::abs(R1 - R2) << "\n";
 
-    // Build circle
-    gp_Ax2d axis(Center, gp_Dir2d(1.0, 0.0)); 
+    // Make circle
+    gp_Ax2d axis(Center, gp_Dir2d(1.0, 0.0));
     gp_Circ2d circ(axis, R1);
     Handle(Geom2d_Circle) geomCirc = new Geom2d_Circle(circ);
 
-    // Parameters
     Standard_Real u1 = ElCLib::Parameter(circ, P1);
     Standard_Real u2 = ElCLib::Parameter(circ, P2);
 
@@ -226,98 +269,10 @@ MakeTangentialArcOrLine(const gp_Pnt2d& P1,
     Handle(Geom2d_TrimmedCurve) arc =
         new Geom2d_TrimmedCurve(geomCirc, u1, u2);
 
-    std::cout << "Arc created. Evaluated End: "
-              << arc->Value(u2) << "\n";
+    std::cout << "Arc EndPointComputed = " << arc->Value(u2) << "\n";
+    std::cout << "========== END MakeTangentialArcOrLine_SymmetricCombined ==========\n\n";
 
-    std::cout << "===================================================\n";
     return arc;
-}
-
-inline gp_Pnt2d ComputeSymmetricP2(
-    const gp_Pnt2d& P1,     // point on L1
-    const gp_Lin2d& L1,
-    const gp_Lin2d& L2,
-    const Standard_Real parallelTol = 1e-12)
-{
-    std::cout << "========== ComputeSymmetricP2 DEBUG ==========\n";
-
-    std::cout << "Input P1 = " << P1 << "\n";
-    std::cout << "Input L1 = " << L1 << "\n";
-    std::cout << "Input L2 = " << L2 << "\n\n";
-
-    gp_Pnt2d P0 = L1.Location();
-    gp_Dir2d d1 = L1.Direction();
-
-    gp_Pnt2d Q0 = L2.Location();
-    gp_Dir2d d2 = L2.Direction();
-
-    std::cout << "L1.Location = " << P0 << "\n";
-    std::cout << "L1.Direction d1 = (" << d1.X() << ", " << d1.Y() << ")\n";
-
-    std::cout << "L2.Location = " << Q0 << "\n";
-    std::cout << "L2.Direction d2 = (" << d2.X() << ", " << d2.Y() << ")\n\n";
-
-    // Solve intersection of P0 + t*d1 = Q0 + s*d2
-    Standard_Real A11 = d1.X();
-    Standard_Real A12 = -d2.X();
-    Standard_Real A21 = d1.Y();
-    Standard_Real A22 = -d2.Y();
-
-    std::cout << "Matrix A:\n";
-    std::cout << "  A11 = " << A11 << "   A12 = " << A12 << "\n";
-    std::cout << "  A21 = " << A21 << "   A22 = " << A22 << "\n";
-
-    Standard_Real B1 = Q0.X() - P0.X();
-    Standard_Real B2 = Q0.Y() - P0.Y();
-
-    std::cout << "Vector B:\n";
-    std::cout << "  B1 = " << B1 << "\n";
-    std::cout << "  B2 = " << B2 << "\n";
-
-    Standard_Real det = A11*A22 - A12*A21;
-
-    std::cout << "det = " << det << "\n";
-
-    if (std::abs(det) < parallelTol)
-    {
-        std::cout << "LINES PARALLEL → no intersection → fallback point returned.\n";
-        std::cout << "===========================================================\n";
-        return Q0;  // fallback: return base of L2
-    }
-
-    Standard_Real invDet = 1.0 / det;
-    Standard_Real t = ( B1*A22 - B2*A12 ) * invDet;
-
-    std::cout << "t (param on L1) = " << t << "\n";
-
-    // Intersection point I = P0 + t*d1
-    gp_Pnt2d I(
-        P0.X() + t * d1.X(),
-        P0.Y() + t * d1.Y()
-    );
-
-    std::cout << "Intersection I = " << I << "\n\n";
-
-    // Compute signed distance s from I to P1 along L1
-    Standard_Real vx = P1.X() - I.X();
-    Standard_Real vy = P1.Y() - I.Y();
-
-    std::cout << "Vector I→P1 = (" << vx << ", " << vy << ")\n";
-
-    Standard_Real s = vx*d1.X() + vy*d1.Y();
-
-    std::cout << "Signed distance s = (I→P1)·d1 = " << s << "\n\n";
-
-    // Compute symmetric point P2 = I + s*d2
-    gp_Pnt2d P2(
-        I.X() + s * d2.X(),
-        I.Y() + s * d2.Y()
-    );
-
-    std::cout << "Computed symmetric P2 = " << P2 << "\n";
-    std::cout << "============ END ComputeSymmetricP2 DEBUG ===============\n\n";
-
-    return P2;
 }
 
 TopoDS_Shape compression_spring_solid(
@@ -388,11 +343,10 @@ TopoDS_Shape compression_spring_solid(
         std::cout << std::endl;
 
         Standard_Real middleHelixCoils = Coils_A;
-        if (Coils_T - Coils_A > 0.0) {
-            middleHelixCoils -= 2.0 * maxTransitionCoils;
-        }
-        if (End_Type == End_Types::Closed || End_Type == End_Types::Closed_Ground) {
-        Standard_Real middleHelixPitch
+//        if (Coils_T - Coils_A > 0.0) {
+//            middleHelixCoils -= 2.0 * maxTransitionCoils;
+//        }
+        Standard_Real middleHelixPitch;
         switch (End_Type) {
             case End_Types::Open:
                 middleHelixPitch = (L_Free - Wire_Dia) / Coils_A;
@@ -501,7 +455,7 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write bottomHelixEdge="; BRepTools::Dump(bottomHelixEdge, std::cout); std::cout << std::endl; // @@@ DUMP @@@
             BRepLib::BuildCurve3d(bottomHelixEdge);
 
-            planeBottomHelixEdge = BRepBuilderAPI_MakeEdge(bottomHelixLine, plane, 0.0, closedHelixCoils * closedHelixHypotenuse).Edge();
+//            planeBottomHelixEdge = BRepBuilderAPI_MakeEdge(bottomHelixLine, plane, 0.0, closedHelixCoils * closedHelixHypotenuse).Edge();
 //            brep_result = BRepTools::Write(bottomHelixEdge, "bottomHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write bottomHelixEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeBottomHelixEdge, "planeBottomHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
@@ -523,7 +477,7 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write bottomTransitionEdge="; BRepTools::Dump(bottomTransitionEdge, std::cout); // @@@ DUMP @@@
             BRepLib::BuildCurve3d(bottomTransitionEdge);
 
-            planeBottomTransitionEdge = BRepBuilderAPI_MakeEdge(bottomTransitionSegment, plane).Edge();
+//            planeBottomTransitionEdge = BRepBuilderAPI_MakeEdge(bottomTransitionSegment, plane).Edge();
 //            brep_result = BRepTools::Write(bottomTransitionEdge, "bottomTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write bottomTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeBottomTransitionEdge, "planeBottomTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
@@ -559,7 +513,7 @@ TopoDS_Shape compression_spring_solid(
 //        std::cout << "Write middleHelixEdge="; BRepTools::Dump(middleHelixEdge, std::cout); // @@@ DUMP @@@
         BRepLib::BuildCurve3d(middleHelixEdge);
 
-        TopoDS_Edge planeMiddleHelixEdge = BRepBuilderAPI_MakeEdge(middleHelixSegment, plane, 0.0, middleHelixCoils * middleHelixHypotenuse).Edge();
+//        TopoDS_Edge planeMiddleHelixEdge = BRepBuilderAPI_MakeEdge(middleHelixSegment, plane, 0.0, middleHelixCoils * middleHelixHypotenuse).Edge();
 //        brep_result = BRepTools::Write(middleHelixEdge, "middleHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //        std::cout << "Write middleHelixEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //        brep_result = BRepTools::Write(planeMiddleHelixEdge, "planeMiddleHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
@@ -591,7 +545,7 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write topTransitionEdge="; BRepTools::Dump(topTransitionEdge, std::cout); // @@@ DUMP @@@
             BRepLib::BuildCurve3d(topTransitionEdge);
             
-            planeTopTransitionEdge = BRepBuilderAPI_MakeEdge(topTransitionSegment, plane).Edge();
+//            planeTopTransitionEdge = BRepBuilderAPI_MakeEdge(topTransitionSegment, plane).Edge();
 //            brep_result = BRepTools::Write(topTransitionEdge, "topTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write topTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeTopTransitionEdge, "planeTopTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
@@ -615,7 +569,7 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write topHelixEdge="; BRepTools::Dump(topHelixEdge, std::cout); std::cout << std::endl; // @@@ DUMP @@@
             BRepLib::BuildCurve3d(topHelixEdge);
 
-            planeTopHelixEdge = BRepBuilderAPI_MakeEdge(topHelixLine, plane, 0.0, closedHelixCoils * closedHelixHypotenuse).Edge();
+//            planeTopHelixEdge = BRepBuilderAPI_MakeEdge(topHelixLine, plane, 0.0, closedHelixCoils * closedHelixHypotenuse).Edge();
 //            brep_result = BRepTools::Write(topHelixEdge, "topHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write topHelixEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeTopHelixEdge, "planeTopHelixEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
@@ -665,6 +619,7 @@ TopoDS_Shape compression_spring_solid(
             gp_Trsf bottomTrsf;
             bottomTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, -closedHelixPitch));
             TopoDS_Shape bottomHelixCutterTransformed = BRepBuilderAPI_Transform(bottomHelixCutter, bottomTrsf);
+//            std::cout << "Write bottomHelixCutterTransformed="; BRepTools::Dump(bottomHelixCutterTransformed, std::cout); std::cout << std::endl; // @@@ DUMP @@@
 
             // Create Top Cutter Box
             std::cout << "Create Top Cutter Box" << std::endl;
@@ -673,6 +628,7 @@ TopoDS_Shape compression_spring_solid(
             gp_Trsf topTrsf;
             topTrsf.SetTranslation(gp_Vec(-cutterWidth/2.0, -cutterWidth/2.0, cutterHeight));
             TopoDS_Shape topHelixCutterTransformed = BRepBuilderAPI_Transform(topHelixCutter, topTrsf);
+//            std::cout << "Write topHelixCutterTransformed="; BRepTools::Dump(topHelixCutterTransformed, std::cout); std::cout << std::endl; // @@@ DUMP @@@
 
             // Fuse Bottom and Top Cutter Boxes
             helixCutter = BRepAlgoAPI_Fuse(bottomHelixCutterTransformed, topHelixCutterTransformed);
