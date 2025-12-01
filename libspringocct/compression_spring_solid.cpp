@@ -15,6 +15,7 @@
 #include <Geom2d_TrimmedCurve.hxx>
 #include <Geom2d_Circle.hxx>
 #include <Geom2d_Line.hxx>
+#include <Geom2dAPI_PointsToBSpline.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_Plane.hxx>
 #include <StlAPI_Writer.hxx>
@@ -24,6 +25,8 @@
 #include <TopoDS_Shape.hxx>
 #include <gp_Circ2d.hxx>
 #include <gp_Circ.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <iostream>
 
 inline std::ostream& operator<<(std::ostream& os, const gp_Pnt2d& P)
@@ -259,6 +262,35 @@ MakeTangentialArcOrLine(const gp_Pnt2d& P1,
     return arc;
 }
 
+inline Handle(Geom2d_BSplineCurve)
+MakeCubicEaseTransition(const gp_Pnt2d& start,
+                        const Standard_Real transitionTurns,
+                        const Standard_Real startPitch,
+                        const Standard_Real endPitch,
+                        const Standard_Integer samples = 16)
+{
+    const Standard_Real deltaPitch = endPitch - startPitch;
+    const Standard_Integer clampedSamples = (samples < 2) ? 2 : samples;
+    TColgp_Array1OfPnt2d points(1, clampedSamples + 1);
+
+    for (Standard_Integer i = 0; i <= clampedSamples; ++i)
+    {
+        const Standard_Real s = static_cast<Standard_Real>(i) /
+                                 static_cast<Standard_Real>(clampedSamples);
+        const Standard_Real theta = start.X() +
+            s * transitionTurns * 2.0 * M_PI;
+
+        const Standard_Real blendIntegral = s * s * s - 0.5 * s * s * s * s;
+        const Standard_Real height = start.Y() + transitionTurns *
+            (startPitch * s + deltaPitch * blendIntegral);
+
+        points.SetValue(i + 1, gp_Pnt2d(theta, height));
+    }
+
+    Geom2dAPI_PointsToBSpline builder(points);
+    return builder.Curve();
+}
+
 TopoDS_Shape compression_spring_solid(
     double outer_diameter,
     double wire_diameter,
@@ -322,8 +354,8 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "closedHelixHypotenuse=" << closedHelixHypotenuse << std::endl;
         std::cout << "closedHelixHeight=" << closedHelixHeight << std::endl;
 
-        Standard_Real maxTransitionCoils = 0.5;
-        std::cout << "maxTransitionCoils=" << maxTransitionCoils << std::endl;
+        Standard_Real transitionTurns = 0.5;
+        std::cout << "transitionTurns=" << transitionTurns << std::endl;
         std::cout << std::endl;
 
         Standard_Real middleHelixCoils = Coils_A;
@@ -339,10 +371,16 @@ TopoDS_Shape compression_spring_solid(
                 middleHelixPitch = L_Free / Coils_T;
                 break;
             case End_Types::Closed:
-                middleHelixPitch = (L_Free - 3.0 * Wire_Dia)  / Coils_A;
+               middleHelixPitch =
+                    (L_Free - 3.0 * closedHelixCoils * closedHelixPitch -
+                     transitionTurns * closedHelixPitch) /
+                    (Coils_A + transitionTurns);
                 break;
             case End_Types::Closed_Ground:
-                middleHelixPitch = (L_Free - 2.0 * Wire_Dia)  / Coils_A;
+                middleHelixPitch =
+                    (L_Free - 2.0 * closedHelixCoils * closedHelixPitch -
+                     transitionTurns * closedHelixPitch) /
+                    (Coils_A + transitionTurns);
                 break;
             case End_Types::Tapered_C_G:
                 middleHelixPitch = (L_Free - 1.5 * Wire_Dia)  / Coils_A;
@@ -362,27 +400,12 @@ TopoDS_Shape compression_spring_solid(
         std::cout << "middleHelixHeight=" << middleHelixHeight << std::endl;
         std::cout << std::endl;
 
-        Standard_Real middleTransitionCoils = maxTransitionCoils / 2;
-        Standard_Real closedTransitionCoils = middleTransitionCoils * middleHelixHypotenuse / closedHelixHypotenuse;
-        Standard_Real temp_middleTransitionCoils = middleTransitionCoils * maxTransitionCoils / (middleTransitionCoils + closedTransitionCoils); // scale them to max
-        Standard_Real temp_closedTransitionCoils = closedTransitionCoils * maxTransitionCoils / (middleTransitionCoils + closedTransitionCoils);
-        middleTransitionCoils = temp_middleTransitionCoils;
-        closedTransitionCoils = temp_closedTransitionCoils;
-//        Standard_Real middleTransitionCoils = maxTransitionCoils / 2.0;
-//        Standard_Real closedTransitionCoils = maxTransitionCoils / 2.0;
-//
-//        Standard_Real closedTransitionHypotenuse = closedTransitionCoils * closedHelixHypotenuse;
-//        Standard_Real closedTransitionHeight = closedTransitionCoils * closedHelixPitch;
-        std::cout << "closedTransitionCoils=" << closedTransitionCoils << std::endl;
-//        std::cout << "closedTransitionHypotenuse=" << closedTransitionHypotenuse << std::endl;
-//        std::cout << "closedTransitionHeight=" << closedTransitionHeight << std::endl;
-        std::cout << std::endl;
-
-//        Standard_Real middleTransitionHypotenuse = closedTransitionHypotenuse; // They must match
-//        Standard_Real middleTransitionHeight = closedTransitionCoils * closedHelixPitch + middleTransitionCoils * middleHelixPitch;
-        std::cout << "middleTransitionCoils=" << middleTransitionCoils << std::endl;
-//        std::cout << "middleTransitionHypotenuse=" << middleTransitionHypotenuse << std::endl;
-//        std::cout << "middleTransitionHeight=" << middleTransitionHeight << std::endl;
+        Standard_Real closedToMiddleTransitionHeight = transitionTurns *
+            (closedHelixPitch + 0.5 * (middleHelixPitch - closedHelixPitch));
+        Standard_Real middleToClosedTransitionHeight = transitionTurns *
+            (middleHelixPitch + 0.5 * (closedHelixPitch - middleHelixPitch));
+        std::cout << "closedToMiddleTransitionHeight=" << closedToMiddleTransitionHeight << std::endl;
+        std::cout << "middleToClosedTransitionHeight=" << middleToClosedTransitionHeight << std::endl;
         std::cout << std::endl;
 
         Handle(Geom_Plane) plane = new Geom_Plane(gp_Ax3 ()); // Debugging tool
@@ -448,18 +471,15 @@ TopoDS_Shape compression_spring_solid(
 
             // Create Bottom Transition
             std::cout << "Create Bottom Transition" << std::endl;
-            gp_Pnt2d bottomTransitionP1(u, v);
-            std::cout << "bottomTransitionP1=" << bottomTransitionP1 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d bottomTransitionP2(u + closedTransitionCoils * 2.0 * M_PI + middleTransitionCoils * 2.0 * M_PI, v + closedTransitionCoils * closedHelixPitch + middleTransitionCoils * middleHelixPitch);
-            std::cout << "bottomTransitionP2=" << bottomTransitionP2 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d bottomTransitionP3(u + closedTransitionCoils * 2.0 * M_PI + middleTransitionCoils * 2.0 * M_PI, v + closedTransitionCoils * closedHelixPitch + middleTransitionCoils * middleHelixPitch);
-            std::cout << "bottomTransitionP3=" << bottomTransitionP3 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d bottomTransitionP4(u + closedTransitionCoils * 2.0 * M_PI + middleTransitionCoils * 2.0 * M_PI + middleHelixCoils * 2. * M_PI, v + closedTransitionCoils * closedHelixPitch + middleTransitionCoils * middleHelixPitch + middleHelixCoils * middleHelixPitch);
-            std::cout << "bottomTransitionP4=" << bottomTransitionP4 << std::endl; // @@@ DUMP @@@
-            Handle(Geom2d_Line) middleTransitionLine = GCE2d_MakeLine(bottomTransitionP3, bottomTransitionP4);
-            std::cout << "middleTransitionLine=" << middleTransitionLine << std::endl; // @@@ DUMP @@@
-            Handle(Geom2d_TrimmedCurve) bottomTransitionSegment = MakeTangentialArcOrLine(bottomHelixP2, bottomHelixLine->Lin2d(), bottomTransitionP3, middleTransitionLine->Lin2d());
-//            Handle(Geom2d_TrimmedCurve) bottomTransitionSegment = GCE2d_MakeArcOfCircle(bottomTransitionP1, gp_Vec2d(gp_Dir2d(2. * M_PI, closedHelixPitch)), bottomTransitionP2);
+            Handle(Geom2d_BSplineCurve) bottomTransitionCurve =
+                MakeCubicEaseTransition(gp_Pnt2d(u, v),
+                                        transitionTurns,
+                                        closedHelixPitch,
+                                        middleHelixPitch);
+            Handle(Geom2d_TrimmedCurve) bottomTransitionSegment =
+                new Geom2d_TrimmedCurve(bottomTransitionCurve,
+                                        bottomTransitionCurve->FirstParameter(),
+                                        bottomTransitionCurve->LastParameter());
             std::cout << "bottomTransitionSegment=" << bottomTransitionSegment << std::endl; // @@@ DUMP @@@
             bottomTransitionEdge = BRepBuilderAPI_MakeEdge(bottomTransitionSegment, helixCylinder).Edge();
 //            std::cout << "Write bottomTransitionEdge="; BRepTools::Dump(bottomTransitionEdge, std::cout); // @@@ DUMP @@@
@@ -470,8 +490,8 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write bottomTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeBottomTransitionEdge, "planeBottomTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write planeBottomTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
-            u += closedTransitionCoils * 2.0 * M_PI + middleTransitionCoils * 2.0 * M_PI;
-            v += closedTransitionCoils * closedHelixPitch + middleTransitionCoils * middleHelixPitch;
+            u += transitionTurns * 2.0 * M_PI;
+            v += closedToMiddleTransitionHeight;
             std::cout << "after Bottom Transition u=" << u << " v=" << v << std::endl;
             std::cout << std::endl;
         }
@@ -523,18 +543,15 @@ TopoDS_Shape compression_spring_solid(
             
             // Create Top Transition
             std::cout << "Create Top Transition" << std::endl;
-            gp_Pnt2d topTransitionP1(u, v);
-            std::cout << "topTransitionP1=" << topTransitionP1 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d topTransitionP2(u + middleTransitionCoils * 2.0 * M_PI + closedTransitionCoils * 2.0 * M_PI, v + middleTransitionCoils * middleHelixPitch + closedTransitionCoils * closedHelixPitch);
-            std::cout << "topTransitionP2=" << topTransitionP2 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d topTransitionP3(u + middleTransitionCoils * 2.0 * M_PI + closedTransitionCoils * 2.0 * M_PI, v + middleTransitionCoils * middleHelixPitch + closedTransitionCoils * closedHelixPitch);
-            std::cout << "topTransitionP3=" << topTransitionP3 << std::endl; // @@@ DUMP @@@
-            gp_Pnt2d topTransitionP4(u + middleTransitionCoils * 2.0 * M_PI + closedTransitionCoils * 2.0 * M_PI + closedHelixCoils * 2. * M_PI, v + middleTransitionCoils * middleHelixPitch + closedTransitionCoils * closedHelixPitch + closedHelixCoils * closedHelixPitch);
-            std::cout << "topTransitionP4=" << topTransitionP4 << std::endl; // @@@ DUMP @@@
-            Handle(Geom2d_Line) topTransitionLine = GCE2d_MakeLine(topTransitionP3, topTransitionP4);
-            std::cout << "topTransitionLine=" << topTransitionLine << std::endl; // @@@ DUMP @@@
-            Handle(Geom2d_TrimmedCurve) topTransitionSegment = MakeTangentialArcOrLine(middleHelixP2, middleHelixLine->Lin2d(), topTransitionP3, topTransitionLine->Lin2d());
-//            Handle(Geom2d_TrimmedCurve) topTransitionSegment = GCE2d_MakeArcOfCircle(topTransitionP1, gp_Vec2d(gp_Dir2d(2. * M_PI, closedHelixPitch)), topTransitionP2);
+            Handle(Geom2d_BSplineCurve) topTransitionCurve =
+                MakeCubicEaseTransition(gp_Pnt2d(u, v),
+                                        transitionTurns,
+                                        middleHelixPitch,
+                                        closedHelixPitch);
+            Handle(Geom2d_TrimmedCurve) topTransitionSegment =
+                new Geom2d_TrimmedCurve(topTransitionCurve,
+                                        topTransitionCurve->FirstParameter(),
+                                        topTransitionCurve->LastParameter());
             std::cout << "topTransitionSegment=" << topTransitionSegment << std::endl; // @@@ DUMP @@@
             topTransitionEdge = BRepBuilderAPI_MakeEdge(topTransitionSegment, helixCylinder).Edge();
 //            std::cout << "Write topTransitionEdge="; BRepTools::Dump(topTransitionEdge, std::cout); // @@@ DUMP @@@
@@ -545,8 +562,8 @@ TopoDS_Shape compression_spring_solid(
 //            std::cout << "Write topTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
 //            brep_result = BRepTools::Write(planeTopTransitionEdge, "planeTopTransitionEdge.brep", Standard_False, Standard_False, TopTools_FormatVersion_VERSION_1);
 //            std::cout << "Write planeTopTransitionEdge brep_result=" << (brep_result==true ? "success" : "fail") << std::endl;
-            u += middleTransitionCoils * 2.0 * M_PI + closedTransitionCoils * 2.0 * M_PI;
-            v += middleTransitionCoils * middleHelixPitch + closedTransitionCoils * closedHelixPitch;
+            u += transitionTurns * 2.0 * M_PI;
+            v += middleToClosedTransitionHeight;
             std::cout << "after Top Transition u=" << u << " v=" << v << std::endl;
             std::cout << std::endl;
 
@@ -641,6 +658,13 @@ TopoDS_Shape compression_spring_solid(
         } else {
             std::cout << "Create Compression Spring from Helix Pipe directly" << std::endl;
             compressionSpring = helixPipe;
+        }
+
+        if (End_Type == End_Types::Open || End_Type == End_Types::Closed) {
+            std::cout << "Translate Open/Closed spring by +0.5*Wire_Dia in Z" << std::endl;
+            gp_Trsf centerOffset;
+            centerOffset.SetTranslation(gp_Vec(0.0, 0.0, 0.5 * Wire_Dia));
+            compressionSpring = BRepBuilderAPI_Transform(compressionSpring, centerOffset);
         }
 
         /* *********************** */
