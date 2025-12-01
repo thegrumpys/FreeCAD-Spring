@@ -760,7 +760,8 @@ TopoDS_Shape compression_spring_solid(
             std::cout << "Translate Open/Closed spring by +0.5*Wire_Dia in Z" << std::endl;
             gp_Trsf centerOffset;
             centerOffset.SetTranslation(gp_Vec(0.0, 0.0, 0.5 * Wire_Dia));
-            compressionSpring = BRepBuilderAPI_Transform(compressionSpring, centerOffset);
+            BRepBuilderAPI_Transform transform(compressionSpring, centerOffset, true);
+            compressionSpring = transform.Shape();
         }
 
         /* *********************** */
