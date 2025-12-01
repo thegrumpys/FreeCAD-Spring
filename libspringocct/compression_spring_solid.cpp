@@ -28,6 +28,19 @@
 #include <Geom2d_BSplineCurve.hxx>
 #include <TColgp_Array1OfPnt2d.hxx>
 #include <iostream>
+#include <Geom2d_Curve.hxx>
+#include <Geom2d_Line.hxx>
+#include <Geom2d_Circle.hxx>
+#include <Geom2d_Ellipse.hxx>
+#include <Geom2d_Parabola.hxx>
+#include <Geom2d_Hyperbola.hxx>
+#include <Geom2d_OffsetCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Circ2d.hxx>
+#include <gp_Ax2d.hxx>    // used by ellipse/parabola/hyperbola classes
 
 inline std::ostream& operator<<(std::ostream& os, const gp_Pnt2d& P)
 {
@@ -78,35 +91,122 @@ inline std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os,
-                                const Handle(Geom2d_TrimmedCurve)& C)
+std::ostream& operator<<(std::ostream& os, const Handle(Geom2d_TrimmedCurve)& c)
 {
-    if (C.IsNull()) {
+    if (c.IsNull()) {
         os << "Geom2d_TrimmedCurve(NULL)";
         return os;
     }
 
-    // End-point evaluation (guaranteed to exist)
-    gp_Pnt2d P1 = C->Value(C->FirstParameter());
-    gp_Pnt2d P2 = C->Value(C->LastParameter());
+    os << "Geom2d_TrimmedCurve(";
 
-    os << "Geom2d_TrimmedCurve(P1=" << P1
-       << ", P2=" << P2;
+    // Endpoints
+    gp_Pnt2d p1 = c->StartPoint();
+    gp_Pnt2d p2 = c->EndPoint();
+    os << "P1=" << p1 << ", P2=" << p2 << ", ";
 
-    // Extract basis curve (you verified this exists)
-    Handle(Geom2d_Curve) base = C->BasisCurve();
+    // Underlying basis
+    Handle(Geom2d_Curve) base = c->BasisCurve();
 
-    // Case 1: Underlying circle
-    if (Handle(Geom2d_Circle) circ = Handle(Geom2d_Circle)::DownCast(base)) {
-        os << ", Circle=" << circ->Circ2d();
+    // ------------ LINE ------------
+    if (Handle(Geom2d_Line) L = Handle(Geom2d_Line)::DownCast(base)) {
+        gp_Lin2d ln = L->Lin2d();
+        os << "Line=" << ln;
     }
-    // Case 2: Underlying line
-    else if (Handle(Geom2d_Line) line = Handle(Geom2d_Line)::DownCast(base)) {
-        os << ", Line=" << line->Lin2d();   // you have operator<< for gp_Lin2d
+
+    // ------------ CIRCLE ------------
+    else if (Handle(Geom2d_Circle) C = Handle(Geom2d_Circle)::DownCast(base)) {
+        gp_Circ2d cc = C->Circ2d();
+        os << "Circle(center=" << cc.Location()
+           << ", R=" << cc.Radius() << ")";
     }
-    // Case 3: Something else (Bezier, BSpline, ellipse, etc.)
+
+    // ------------ ELLIPSE ------------
+    else if (Handle(Geom2d_Ellipse) E = Handle(Geom2d_Ellipse)::DownCast(base)) {
+        os << "Ellipse(center=" << E->Location()
+           << ", Major=" << E->MajorRadius()
+           << ", Minor=" << E->MinorRadius() << ")";
+    }
+    
+    // ------------ PARABOLA ------------
+    else if (Handle(Geom2d_Parabola) P = Handle(Geom2d_Parabola)::DownCast(base)) {
+        os << "Parabola(Location=" << P->Location()
+           << ", Focal=" << P->Focal()
+           << ", Focus=" << P->Focus()
+           << ", Directrix=" << P->Directrix()
+           << ")";
+    }
+    
+    // ------------ HYPERBOLA ------------
+    else if (Handle(Geom2d_Hyperbola) H = Handle(Geom2d_Hyperbola)::DownCast(base)) {
+        os << "Hyperbola(center=" << H->Location()
+           << ", Major=" << H->MajorRadius()
+           << ", Minor=" << H->MinorRadius() << ")";
+    }
+
+    // ------------ BEZIER ------------
+    else if (Handle(Geom2d_BezierCurve) BZ = Handle(Geom2d_BezierCurve)::DownCast(base)) {
+        os << "BezierCurve(Poles=" << BZ->NbPoles() << ")";
+    }
+
+    // ------------ BSPLINE ------------
+    else if (Handle(Geom2d_BSplineCurve) BS = Handle(Geom2d_BSplineCurve)::DownCast(base)) {
+    
+        os << "BSplineCurve(";
+    
+        os << "Degree=" << BS->Degree()
+           << ", Poles=" << BS->NbPoles()
+           << ", Knots=" << BS->NbKnots()
+           << ", Rational=" << (BS->IsRational() ? "true" : "false")
+           << ", Trim=[" << c->FirstParameter() << "," << c->LastParameter() << "]";
+    
+        // Poles
+        os << ", PoleList=[";
+        for (int i=1; i <= BS->NbPoles(); ++i) {
+            os << BS->Pole(i);
+            if (i < BS->NbPoles()) os << ",";
+        }
+        os << "]";
+    
+        // Weights
+        if (BS->IsRational()) {
+            os << ", WeightList=[";
+            for (int i=1; i <= BS->NbPoles(); ++i) {
+                os << BS->Weight(i);
+                if (i < BS->NbPoles()) os << ",";
+            }
+            os << "]";
+        }
+    
+        // Knots + Multiplicities
+        os << ", KnotList=[";
+        for (int i=1; i <= BS->NbKnots(); ++i) {
+            os << "(" << BS->Knot(i)
+               << ", mult=" << BS->Multiplicity(i) << ")";
+            if (i < BS->NbKnots()) os << ",";
+        }
+        os << "]";
+    
+        os << ")";
+    }
+
+    // ------------ OFFSET CURVE ------------
+    else if (Handle(Geom2d_OffsetCurve) OC = Handle(Geom2d_OffsetCurve)::DownCast(base)) {
+        os << "OffsetCurve(Offset=" << OC->Offset()
+           << ", BaseCurveType=";
+
+        Handle(Geom2d_Curve) sub = OC->BasisCurve();
+        if (Handle(Geom2d_Line)::DownCast(sub)) os << "Line";
+        else if (Handle(Geom2d_Circle)::DownCast(sub)) os << "Circle";
+        else if (Handle(Geom2d_BSplineCurve)::DownCast(sub)) os << "BSpline";
+        else os << "Other";
+
+        os << ")";
+    }
+
+    // ------------ UNKNOWN / OTHER ------------
     else {
-        os << ", BasisCurve=NonCircleNonLine";
+        os << "BasisCurve=UnknownType";
     }
 
     os << ")";
