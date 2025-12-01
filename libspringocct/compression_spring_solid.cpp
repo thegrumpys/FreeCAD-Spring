@@ -1,5 +1,5 @@
-#include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
@@ -10,37 +10,33 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepTools.hxx>
 #include <ElCLib.hxx>
-#include <GCE2d_MakeLine.hxx>
 #include <GCE2d_MakeArcOfCircle.hxx>
-#include <Geom2d_TrimmedCurve.hxx>
-#include <Geom2d_Circle.hxx>
-#include <Geom2d_Line.hxx>
-#include <Geom2dAPI_PointsToBSpline.hxx>
+#include <GCE2d_MakeLine.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_Plane.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_Circle.hxx>
+#include <Geom2d_Curve.hxx>
+#include <Geom2d_Ellipse.hxx>
+#include <Geom2d_Hyperbola.hxx>
+#include <Geom2d_Line.hxx>
+#include <Geom2d_OffsetCurve.hxx>
+#include <Geom2d_Parabola.hxx>
+#include <Geom2d_TrimmedCurve.hxx>
+#include <Geom2dAPI_PointsToBSpline.hxx>
+#include <gp_Ax2d.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Circ2d.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Pnt2d.hxx>
+#include <iostream>
 #include <StlAPI_Writer.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <TopoDS_Edge.hxx>
-#include <TopoDS_Wire.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
-#include <gp_Circ2d.hxx>
-#include <gp_Circ.hxx>
-#include <Geom2d_BSplineCurve.hxx>
-#include <TColgp_Array1OfPnt2d.hxx>
-#include <iostream>
-#include <Geom2d_Curve.hxx>
-#include <Geom2d_Line.hxx>
-#include <Geom2d_Circle.hxx>
-#include <Geom2d_Ellipse.hxx>
-#include <Geom2d_Parabola.hxx>
-#include <Geom2d_Hyperbola.hxx>
-#include <Geom2d_OffsetCurve.hxx>
-#include <Geom2d_BSplineCurve.hxx>
-#include <Geom2d_BezierCurve.hxx>
-#include <gp_Pnt2d.hxx>
-#include <gp_Lin2d.hxx>
-#include <gp_Circ2d.hxx>
-#include <gp_Ax2d.hxx>    // used by ellipse/parabola/hyperbola classes
+#include <TopoDS_Wire.hxx>
 
 inline std::ostream& operator<<(std::ostream& os, const gp_Pnt2d& P)
 {
