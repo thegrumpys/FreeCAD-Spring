@@ -8,6 +8,6 @@ TopoDS_Shape compression_spring_solid(
     double wire_diameter,
     double free_length,
     double total_coils,
-    double inactive_coils,
-    int end_type
+    int end_type,
+    double inactive_coils
 );

@@ -392,8 +392,8 @@ TopoDS_Shape compression_spring_solid(
     double wire_diameter,
     double free_length,
     double total_coils,
-    double inactive_coils,
-    int end_type)
+    int end_type,
+    double inactive_coils)
 {
 
     std::cout << "Starting compression_spring_solid" << std::endl;
@@ -415,18 +415,22 @@ TopoDS_Shape compression_spring_solid(
         Standard_Real Wire_Dia = wire_diameter;
         Standard_Real L_Free = free_length;
         Standard_Real Coils_T = total_coils;
+        std::cout << "Independent: OD_Free=" << OD_Free << std::endl;
+        std::cout << "Independent: Wire_Dia=" << Wire_Dia << std::endl;
+        std::cout << "Independent: L_Free=" << L_Free << std::endl;
+        std::cout << "Independent: Coils_T=" << Coils_T << std::endl;
+        std::cout << std::endl;
+
         Standard_Integer End_Type = end_type;
-        std::cout << "OD_Free=" << OD_Free << std::endl;
-        std::cout << "Wire_Dia=" << Wire_Dia << std::endl;
-        std::cout << "L_Free=" << L_Free << std::endl;
-        std::cout << "Coils_T=" << Coils_T << std::endl;
-        std::cout << "End_Type=" << End_Type << std::endl;
+        Standard_Real Coils_I = inactive_coils;
+        std::cout << "Global: End_Type=" << End_Type << std::endl;
+        std::cout << "Global: Coils_I=" << Coils_I << std::endl;
         std::cout << std::endl;
 
         Standard_Real Mean_Dia = OD_Free - Wire_Dia;
-        Standard_Real Coils_A = Coils_T - inactive_coils;
-        std::cout << "Mean_Dia=" << Mean_Dia << std::endl;
-        std::cout << "Coils_A=" << Coils_A << std::endl;
+        Standard_Real Coils_A = Coils_T - Coils_I;
+        std::cout << "Dependent: Mean_Dia=" << Mean_Dia << std::endl;
+        std::cout << "Dependent: Coils_A=" << Coils_A << std::endl;
         std::cout << std::endl;
 
 //        Standard_Real LevelOfDetail = level_of_detail; // Level of Detail
@@ -459,6 +463,11 @@ TopoDS_Shape compression_spring_solid(
 //            middleHelixCoils -= 2.0 * maxTransitionCoils;
 //        }
         Standard_Real middleHelixPitch;
+        const Standard_Boolean hasClosedCoils =
+            (End_Type == End_Types::Closed) ||
+            (End_Type == End_Types::Closed_Ground) ||
+            (End_Type == End_Types::User_Specified && Coils_I > 0.0);
+
         switch (End_Type) {
             case End_Types::Open:
                 middleHelixPitch = (L_Free - Wire_Dia) / Coils_A;
@@ -485,7 +494,14 @@ TopoDS_Shape compression_spring_solid(
                 middleHelixPitch = (L_Free - 2.0 * Wire_Dia)  / Coils_A;
                 break;
             case End_Types::User_Specified:
-                middleHelixPitch = (L_Free - (Coils_T - Coils_A + 1) * Wire_Dia)  / Coils_A;
+                if (hasClosedCoils) {
+                    middleHelixPitch =
+                        (L_Free - 3.0 * closedHelixCoils * closedHelixPitch -
+                         transitionTurns * closedHelixPitch) /
+                        (Coils_A + transitionTurns);
+                } else {
+                    middleHelixPitch = (L_Free - (Coils_T - Coils_A + 1) * Wire_Dia)  / Coils_A;
+                }
                 break;
         }
         Standard_Real middleHelixHypotenuse = sqrt((2.0 * M_PI * 2.0 * M_PI) + (middleHelixPitch * middleHelixPitch));
@@ -540,7 +556,7 @@ TopoDS_Shape compression_spring_solid(
         TopoDS_Edge planeBottomTransitionEdge;
         TopoDS_Edge bottomHelixEdge;
         TopoDS_Edge bottomTransitionEdge;
-        if (End_Type == End_Types::Closed || End_Type == End_Types::Closed_Ground) {
+        if (hasClosedCoils) {
             // Create Bottom Helix
             std::cout << "Create Bottom Helix" << std::endl;
             gp_Pnt2d bottomHelixP1(u, v);
@@ -635,7 +651,7 @@ TopoDS_Shape compression_spring_solid(
         TopoDS_Edge topTransitionEdge;
         TopoDS_Edge planeTopHelixEdge;
         TopoDS_Edge planeTopTransitionEdge;
-        if (End_Type == End_Types::Closed || End_Type == End_Types::Closed_Ground) {
+        if (hasClosedCoils) {
             
             // Create Top Transition
             std::cout << "Create Top Transition" << std::endl;
@@ -693,7 +709,7 @@ TopoDS_Shape compression_spring_solid(
         /* ******************************** */
 
         TopoDS_Wire helixWire;
-        if (End_Type == End_Types::Closed || End_Type == End_Types::Closed_Ground) {
+        if (hasClosedCoils) {
             std::cout << "Create Helix Wire from Bottom, Bottom Transition, Middle, Top Transition and Top Helix" << std::endl;
             BRepBuilderAPI_MakeWire makeWire = BRepBuilderAPI_MakeWire();
             makeWire.Add(bottomHelixEdge);
@@ -756,7 +772,7 @@ TopoDS_Shape compression_spring_solid(
             compressionSpring = helixPipe;
         }
 
-        if (End_Type == End_Types::Open || End_Type == End_Types::Closed) {
+        if (End_Type == End_Types::Open || hasClosedCoils) {
             std::cout << "Translate Open/Closed spring by +0.5*Wire_Dia in Z" << std::endl;
             gp_Trsf centerOffset;
             centerOffset.SetTranslation(gp_Vec(0.0, 0.0, 0.5 * Wire_Dia));

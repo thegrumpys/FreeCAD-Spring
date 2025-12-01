@@ -219,15 +219,15 @@ PYBIND11_MODULE(springocct, m)
            double wire_diameter,
            double free_length,
            double total_coils,
-           double inactive_coils,
-           int end_type) -> py::object {
+           int end_type,
+           double inactive_coils) -> py::object {
             TopoDS_Shape shape = compression_spring_solid(
                 outer_diameter,
                 wire_diameter,
                 free_length,
                 total_coils,
-                inactive_coils,
-                end_type);
+                end_type,
+                inactive_coils);
 
             Py::Object pyShape = Part::shape2pyshape(shape);
             PyObject* owned = pyShape.ptr();
@@ -238,6 +238,6 @@ PYBIND11_MODULE(springocct, m)
         py::arg("wire_diameter"),
         py::arg("free_length"),
         py::arg("total_coils"),
-        py::arg("inactive_coils"),
-        py::arg("end_type"));
+        py::arg("end_type"),
+        py::arg("inactive_coils"));
 }
