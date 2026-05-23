@@ -25,13 +25,18 @@ class ExtensionSpring:
         CoreUtils.add_property(obj, "HookDeflectionAllowance", 0.0, "App::PropertyFloat", "Global")
         obj.setEditorMode("HookDeflectionAllowance", 1)
         CoreUtils.add_property(obj, "TorsionModulus", SpringUtils.MUSIC_WIRE_SHEAR_MODULUS, "App::PropertyFloat", "Global")
+        CoreUtils.ensure_alert_properties(obj)
 
         obj.Proxy = self
         ViewProviderSpring(obj.ViewObject)
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
 
     def execute(self, obj):
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
+        CoreUtils.raise_for_alert_errors(obj)
         radius = obj.OutsideDiameterAtFree / 2.0
         wire_radius = obj.WireDiameter / 2.0
         end_type_selection = getattr(obj, "EndType", None)
@@ -46,14 +51,29 @@ class ExtensionSpring:
         )
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
 
     def onChanged(self, obj, prop):
+        if prop in ("Shape", "AlertErrors", "AlertWarnings", "AlertInfos"):
+            return
         if prop == "EndType":
             selection = getattr(obj, "EndType", None)
             if isinstance(selection, (list, tuple)):
                 selection = selection[0] if selection else None
                 SpringUtils.update_globals(obj)
                 SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
+        CoreUtils.recompute_for_alert_state(obj)
+
+    def getAlerts(self, obj):
+        CoreUtils.update_basic_alerts(obj)
+        return {
+            "errors": list(getattr(obj, "AlertErrors", [])),
+            "warnings": list(getattr(obj, "AlertWarnings", [])),
+            "infos": list(getattr(obj, "AlertInfos", [])),
+        }
 
 def make():
     doc = FreeCAD.ActiveDocument

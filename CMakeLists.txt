@@ -22,6 +22,7 @@ set(SPRING_PYTHON_FILES
 set(SPRING_PYTHON_DIRECTORIES
     Commands
     Features
+    Gui
     Resources
     Spring
     Tests

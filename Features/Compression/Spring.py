@@ -83,6 +83,7 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "const_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
         CoreUtils.add_property(obj, "slope_term", 0.0, "App::PropertyFloat", "Global", 2) # hidden
         CoreUtils.add_property(obj, "tensile_010", 1000.0 * SpringUtils.MUSIC_WIRE_T010, "App::PropertyFloat", "Global", 2) # hidden
+        CoreUtils.ensure_alert_properties(obj)
 
         # Changing a primary property could set one or more secondary properties
         CoreUtils.reload_enum(obj, "Compression", "PropCalcMethod")
@@ -96,9 +97,13 @@ class CompressionSpring:
         ViewProviderSpring(obj.ViewObject)
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
 
     def execute(self, obj):
 #        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
+        CoreUtils.raise_for_alert_errors(obj)
         try:
             spring = springocct.compression_spring_solid(
                 outer_diameter=obj.OutsideDiameterAtFree,
@@ -116,9 +121,13 @@ class CompressionSpring:
 
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
 
     def onChanged(self, obj, prop):
 #        FreeCAD.Console.PrintMessage(f"[CompressionSpring.onChanged] self={self} obj={obj} prop={prop}\n")
+        if prop in ("Shape", "AlertErrors", "AlertWarnings", "AlertInfos"):
+            return
         if prop == "PropCalcMethod":
             selection = CoreUtils.enum_selection_value(getattr(obj, "PropCalcMethod", None))
             CoreUtils.apply_enum_property_values(obj, "Compression", "PropCalcMethod", selection)
@@ -134,6 +143,17 @@ class CompressionSpring:
             CoreUtils.apply_enum_property_values(obj, "Compression", "EndType", selection)
             SpringUtils.update_globals(obj)
             SpringUtils.update_properties(obj)
+        CoreUtils.update_basic_alerts(obj)
+        CoreUtils.refresh_alert_panel_for(obj)
+        CoreUtils.recompute_for_alert_state(obj)
+
+    def getAlerts(self, obj):
+        CoreUtils.update_basic_alerts(obj)
+        return {
+            "errors": list(getattr(obj, "AlertErrors", [])),
+            "warnings": list(getattr(obj, "AlertWarnings", [])),
+            "infos": list(getattr(obj, "AlertInfos", [])),
+        }
 
 def make():
 #    FreeCAD.Console.PrintMessage(f"[make]\n")

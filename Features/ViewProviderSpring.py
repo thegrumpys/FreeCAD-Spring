@@ -3,14 +3,16 @@ try:
 except ImportError:
     FreeCADGui = None
 
+
 class ViewProviderSpring:
     def __init__(self, vobj):
         if FreeCADGui is None or vobj is None:
             return
+        self.Object = vobj.Object
         vobj.Proxy = self
 
     def attach(self, vobj):
-        pass
+        self.Object = vobj.Object
 
     def updateData(self, fp, prop):
         pass
@@ -32,6 +34,29 @@ class ViewProviderSpring:
 
     def setDisplayMode(self, mode):
         return mode
+
+    def setEdit(self, vobj, mode=0):
+        if FreeCADGui is None:
+            return False
+        try:
+            from Gui import SpringAlertsTaskPanel
+        except Exception:
+            return False
+        SpringAlertsTaskPanel.open_task_panel(vobj.Object)
+        return True
+
+    def unsetEdit(self, vobj, mode=0):
+        if FreeCADGui is not None:
+            try:
+                from Gui import SpringAlertsTaskPanel
+                SpringAlertsTaskPanel.restore_task_panel_color()
+            except Exception:
+                pass
+            FreeCADGui.Control.closeDialog()
+        return True
+
+    def doubleClicked(self, vobj):
+        return self.setEdit(vobj)
 
     def onChanged(self, vobj, prop):
         pass

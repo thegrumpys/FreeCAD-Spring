@@ -143,3 +143,145 @@ def reload_enum(fp, type_name, name):
         setattr(fp, name, enum_values[0])
 #
 #    FreeCAD.Console.PrintMessage(f"[reload_enum] {name} reloaded with {len(enum_values)} enum_values={enum_values}\n")
+
+def ensure_alert_properties(obj) -> None:
+    """Add hidden alert storage properties to a spring object."""
+
+    add_property(obj, "AlertErrors", [], "App::PropertyStringList", "Alerts", 2)
+    add_property(obj, "AlertWarnings", [], "App::PropertyStringList", "Alerts", 2)
+    add_property(obj, "AlertInfos", [], "App::PropertyStringList", "Alerts", 2)
+
+
+def set_alerts(obj, errors=None, warnings=None, infos=None) -> None:
+    """Store current alerts on the object without requiring GUI code."""
+
+    ensure_alert_properties(obj)
+    obj.AlertErrors = list(errors or [])
+    obj.AlertWarnings = list(warnings or [])
+    obj.AlertInfos = list(infos or [])
+
+
+def raise_for_alert_errors(obj) -> None:
+    """Raise when object-owned alerts contain fatal errors."""
+
+    has_errors = False
+    for error in getattr(obj, "AlertErrors", []):
+        has_errors = True
+        break
+
+    if has_errors:
+        raise ValueError("Alert error")
+
+
+def recompute_for_alert_state(obj) -> None:
+    """Let FreeCAD update its native object error marker for alert errors."""
+
+    try:
+        has_errors = bool(list(getattr(obj, "AlertErrors", [])))
+    except Exception:
+        has_errors = False
+
+    try:
+        is_valid = obj.isValid()
+    except Exception:
+        is_valid = True
+
+    if has_errors or not is_valid:
+        try:
+            obj.recompute()
+        except Exception:
+            pass
+
+
+def update_basic_alerts(obj) -> None:
+    """Populate generic spring alerts that are independent of display code."""
+
+    has_errors = False
+    errors = []
+    warnings = []
+
+    try:
+        wire_diameter = float(getattr(obj, "WireDiameter"))
+    except (AttributeError, TypeError, ValueError):
+        wire_diameter = None
+        warnings.append("Wire diameter input is incomplete.")
+
+    try:
+        outside_diameter = float(getattr(obj, "OutsideDiameterAtFree"))
+    except (AttributeError, TypeError, ValueError):
+        outside_diameter = None
+        warnings.append("Outside diameter input is incomplete.")
+
+    if wire_diameter is not None and wire_diameter <= 0.0:
+        has_errors = True
+        errors.append("Wire diameter must be greater than zero.")
+    if outside_diameter is not None and wire_diameter is not None and outside_diameter <= 2.0 * wire_diameter:
+        has_errors = True
+        errors.append("Outside diameter must be greater than two wire diameters.")
+
+    try:
+        coils_total = float(getattr(obj, "CoilsTotal"))
+        if coils_total < 1.0:
+            has_errors = True
+            errors.append("Total coils must be at least one.")
+    except (AttributeError, TypeError, ValueError):
+        coils_total = None
+        warnings.append("Total coils input is incomplete.")
+
+    try:
+        coils_inactive = float(getattr(obj, "CoilsInactive"))
+    except (AttributeError, TypeError, ValueError):
+        coils_inactive = None
+
+    if coils_total is not None and coils_inactive is not None and (
+        coils_inactive < 0.0 or coils_inactive > coils_total
+    ):
+        has_errors = True
+        errors.append("Inactive coils must be between zero and total coils.")
+
+    try:
+        coils_active = float(getattr(obj, "CoilsActive"))
+        if coils_active < 1.0:
+            warnings.append("Active coils are less than 1.")
+    except (AttributeError, TypeError, ValueError):
+        pass
+
+    try:
+        length_at_free = float(getattr(obj, "LengthAtFree"))
+        if wire_diameter is not None and length_at_free <= wire_diameter:
+            has_errors = True
+            errors.append("Free length must be greater than wire diameter.")
+    except (AttributeError, TypeError, ValueError):
+        length_at_free = None
+        warnings.append("Free length input is incomplete.")
+
+    try:
+        length_at_solid = float(getattr(obj, "LengthAtSolid"))
+    except (AttributeError, TypeError, ValueError):
+        length_at_solid = None
+
+    if length_at_free is not None and length_at_solid is not None and length_at_free < length_at_solid:
+        has_errors = True
+        errors.append("Free length must not be less than solid length.")
+
+    try:
+        spring_index = float(getattr(obj, "SpringIndex"))
+        if spring_index < 4.0 or spring_index > 25.0:
+            warnings.append("Spring index is outside the recommended range of 4 to 25. Manufacturing may be difficult.")
+    except (AttributeError, TypeError, ValueError):
+        pass
+
+    set_alerts(obj, errors=errors if has_errors else [], warnings=warnings)
+
+
+def refresh_alert_panel_for(obj) -> None:
+    """Refresh the alerts task panel if it is open."""
+
+    try:
+        from Gui import SpringAlertsTaskPanel
+    except Exception:
+        return
+    try:
+        SpringAlertsTaskPanel.refresh_task_panel_if_visible(obj)
+    except Exception:
+        pass
