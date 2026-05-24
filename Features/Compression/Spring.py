@@ -21,6 +21,37 @@ def _log_console(message: str) -> None:
     except Exception:
         pass
 
+def _safe_shape_value(label, callback):
+    try:
+        return callback()
+    except Exception as exc:
+        return f"{label} unavailable: {exc}"
+
+def _log_shape_diagnostics(obj):
+    shape = obj.Shape
+    FreeCAD.Console.PrintMessage(
+        "[Spring Shape] "
+        f"valid={_safe_shape_value('valid', shape.isValid)} "
+        f"type={getattr(shape, 'ShapeType', None)} "
+        f"faces={len(getattr(shape, 'Faces', []))} "
+        f"edges={len(getattr(shape, 'Edges', []))} "
+        f"shells={len(getattr(shape, 'Shells', []))} "
+        f"solids={len(getattr(shape, 'Solids', []))} "
+        f"volume={_safe_shape_value('volume', lambda: shape.Volume)}\n"
+    )
+
+    try:
+        vobj = obj.ViewObject
+    except Exception:
+        return
+
+    FreeCAD.Console.PrintMessage(
+        "[Spring View] "
+        f"Deviation={getattr(vobj, 'Deviation', None)} "
+        f"AngularDeflection={getattr(vobj, 'AngularDeflection', None)} "
+        f"DisplayMode={getattr(vobj, 'DisplayMode', None)}\n"
+    )
+
 class CompressionSpring:
     def __init__(self, obj):
 #        FreeCAD.Console.PrintMessage(f"[CompressionSpring.__init__] self={self} obj={obj}\n")
@@ -117,6 +148,7 @@ class CompressionSpring:
             raise
 #        FreeCAD.Console.PrintMessage("springocct compression_spring_solid: " f"return: {spring}\n")
         obj.Shape = spring
+        _log_shape_diagnostics(obj)
 #        print("Compression spring solid created and displayed successfully.")
 
         SpringUtils.update_globals(obj)

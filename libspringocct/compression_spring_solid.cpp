@@ -46,6 +46,8 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Wire.hxx>
+#include <TopAbs_ShapeEnum.hxx>
+#include <TopExp_Explorer.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
@@ -204,6 +206,69 @@ static void DumpShapeState(const std::string& name, const TopoDS_Shape& S)
               << xmax << "," << ymax << "," << zmax << std::endl;
 
     SPRING_DEBUG_STREAM << "-------------------------------------" << std::endl;
+}
+
+static int CountSubShapes(const TopoDS_Shape& shape, const TopAbs_ShapeEnum type)
+{
+    int count = 0;
+    for (TopExp_Explorer explorer(shape, type); explorer.More(); explorer.Next()) {
+        ++count;
+    }
+    return count;
+}
+
+static void PrintShapeDiagnostic(const std::string& name, const TopoDS_Shape& shape)
+{
+    std::cout << "[Spring BRep] " << name;
+
+    if (shape.IsNull()) {
+        std::cout << ": null=TRUE" << std::endl;
+        return;
+    }
+
+    BRepCheck_Analyzer analyzer(shape);
+    GProp_GProps props;
+    BRepGProp::VolumeProperties(shape, props);
+
+    std::cout
+        << ": null=FALSE"
+        << " type=" << static_cast<int>(shape.ShapeType())
+        << " valid=" << (analyzer.IsValid() ? "TRUE" : "FALSE")
+        << " solids=" << CountSubShapes(shape, TopAbs_SOLID)
+        << " shells=" << CountSubShapes(shape, TopAbs_SHELL)
+        << " faces=" << CountSubShapes(shape, TopAbs_FACE)
+        << " edges=" << CountSubShapes(shape, TopAbs_EDGE)
+        << " vertices=" << CountSubShapes(shape, TopAbs_VERTEX)
+        << " volume=" << props.Mass();
+
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    if (!box.IsVoid()) {
+        Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+        box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+        std::cout
+            << " bbox=["
+            << xmin << "," << ymin << "," << zmin
+            << " -> "
+            << xmax << "," << ymax << "," << zmax
+            << "]";
+    }
+
+    std::cout << std::endl;
+}
+
+static void PrintPipeDiagnostic(const std::string& name, BRepOffsetAPI_MakePipeShell& pipe)
+{
+    std::cout
+        << "[Spring BRep] " << name
+        << ": pipeDone=" << (pipe.IsDone() ? "TRUE" : "FALSE")
+        << std::endl;
+
+    if (!pipe.IsDone()) {
+        return;
+    }
+
+    PrintShapeDiagnostic(name + " shape", pipe.Shape());
 }
 
 static void DumpPipeShellState(const std::string& name,
@@ -1775,17 +1840,20 @@ TopoDS_Shape compression_spring_solid(
                 pipe.SetLaw(nominalProfile, radiusLaw, Standard_False /* WithContact*/, Standard_True /* WithCorrection */);
 
                 pipe.Build();
+                PrintPipeDiagnostic("pigtail singlePipe after Build", pipe);
                 DumpPipeShellState("singlePipe after Build", pipe);
                 Standard_Boolean flag = pipe.MakeSolid();
                 SPRING_DEBUG_STREAM << "MakeSolid flag=" << (flag==true ? "success" : "fail") << std::endl;
                 if (!flag) {
                     throw Standard_Failure("PipeShell MakeSolid failed");
                 }
+                PrintPipeDiagnostic("pigtail singlePipe after MakeSolid", pipe);
                 DumpPipeShellState("singlePipe after MakeSolid", pipe);
                 helixPipeShape = pipe.Shape();
                 if (helixPipeShape.IsNull()) {
                     throw Standard_Failure("PipeShell produced a null shape");
                 }
+                PrintShapeDiagnostic("pigtail helixPipeShape", helixPipeShape);
                 DumpShapeState("helixPipeShape", helixPipeShape);
                 {
                     Bnd_Box springBox;
@@ -1919,17 +1987,20 @@ TopoDS_Shape compression_spring_solid(
                 pipe.SetLaw(nominalProfile, radiusLaw, Standard_False /* WithContact*/, Standard_True /* WithCorrection */);
 
                 pipe.Build();
+                PrintPipeDiagnostic("closed singlePipe after Build", pipe);
                 DumpPipeShellState("singlePipe after Build", pipe);
                 Standard_Boolean flag = pipe.MakeSolid();
                 SPRING_DEBUG_STREAM << "MakeSolid flag=" << (flag==true ? "success" : "fail") << std::endl;
                 if (!flag) {
                     throw Standard_Failure("PipeShell MakeSolid failed");
                 }
+                PrintPipeDiagnostic("closed singlePipe after MakeSolid", pipe);
                 DumpPipeShellState("singlePipe after MakeSolid", pipe);
                 helixPipeShape = pipe.Shape();
                 if (helixPipeShape.IsNull()) {
                     throw Standard_Failure("PipeShell produced a null shape");
                 }
+                PrintShapeDiagnostic("closed helixPipeShape", helixPipeShape);
                 DumpShapeState("helixPipeShape", helixPipeShape);
                 {
                     Bnd_Box springBox;
@@ -1984,17 +2055,20 @@ TopoDS_Shape compression_spring_solid(
             helixPipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
             helixPipe.Add(profileWire, Standard_False, Standard_True);
             helixPipe.Build();
+            PrintPipeDiagnostic("openPipe after Build", helixPipe);
             DumpPipeShellState("openPipe after Build", helixPipe);
             Standard_Boolean flag = helixPipe.MakeSolid();
             SPRING_DEBUG_STREAM << "MakeSolid flag=" << (flag==true ? "success" : "fail") << std::endl;
             if (!flag) {
                 throw Standard_Failure("PipeShell MakeSolid failed");
             }
+            PrintPipeDiagnostic("openPipe after MakeSolid", helixPipe);
             DumpPipeShellState("openPipe after MakeSolid", helixPipe);
             helixPipeShape = helixPipe.Shape();
             if (helixPipeShape.IsNull()) {
                 throw Standard_Failure("PipeShell produced a null shape");
             }
+            PrintShapeDiagnostic("openHelixPipeShape", helixPipeShape);
             DumpShapeState("openHelixPipeShape", helixPipeShape);
         }
 
@@ -2032,12 +2106,15 @@ TopoDS_Shape compression_spring_solid(
 
             // Cut Bottom and Top Cutter Boxes from Total Helix Pipe
             SPRING_DEBUG_STREAM << "Create Compression Spring from Helix Pipe minus Cutters" << std::endl;
+            PrintShapeDiagnostic("before ground cuts", helixPipeShape);
 
             TopoDS_Shape cutAfterBottom = BRepAlgoAPI_Cut(helixPipeShape, bottomHelixCutterTransformed);
+            PrintShapeDiagnostic("cutAfterBottom", cutAfterBottom);
             DumpShapeState("cutAfterBottom", cutAfterBottom);
             DumpCutDelta("bottom cut", helixPipeShape, cutAfterBottom);
 
             TopoDS_Shape cutAfterTop = BRepAlgoAPI_Cut(cutAfterBottom, topHelixCutterTransformed);
+            PrintShapeDiagnostic("cutAfterTop", cutAfterTop);
             DumpShapeState("cutAfterTop", cutAfterTop);
             DumpCutDelta("top cut", cutAfterBottom, cutAfterTop);
 
@@ -2067,6 +2144,7 @@ TopoDS_Shape compression_spring_solid(
         throw Standard_Failure("Produced a null final shape");
     }
 
+    PrintShapeDiagnostic("FINAL compressionSpring", compressionSpring);
     BRepCheck_Analyzer finalAnalyzer(compressionSpring);
     if (!finalAnalyzer.IsValid()) {
         throw Standard_Failure("Produced an invalid final shape");

@@ -193,6 +193,14 @@ def recompute_for_alert_state(obj) -> None:
             pass
 
 
+def print_alert_check(obj, check, result) -> None:
+    if not result:
+        return
+
+    label = getattr(obj, "Label", getattr(obj, "Name", "Spring"))
+    FreeCAD.Console.PrintMessage(f"[Spring Alerts] {label}: {check}: {result}\n")
+
+
 def update_basic_alerts(obj) -> None:
     """Populate generic spring alerts that are independent of display code."""
 
@@ -205,71 +213,111 @@ def update_basic_alerts(obj) -> None:
     except (AttributeError, TypeError, ValueError):
         wire_diameter = None
         warnings.append("Wire diameter input is incomplete.")
+    print_alert_check(obj, "WireDiameter input is incomplete", wire_diameter is None)
 
     try:
         outside_diameter = float(getattr(obj, "OutsideDiameterAtFree"))
     except (AttributeError, TypeError, ValueError):
         outside_diameter = None
         warnings.append("Outside diameter input is incomplete.")
+    print_alert_check(obj, "OutsideDiameterAtFree input is incomplete", outside_diameter is None)
 
-    if wire_diameter is not None and wire_diameter <= 0.0:
+    wire_diameter_invalid = wire_diameter is not None and wire_diameter <= 0.0
+    print_alert_check(obj, "WireDiameter <= 0.0", wire_diameter_invalid)
+    if wire_diameter_invalid:
         has_errors = True
         errors.append("Wire diameter must be greater than zero.")
-    if outside_diameter is not None and wire_diameter is not None and outside_diameter <= 2.0 * wire_diameter:
+
+    outside_diameter_too_small = (
+        outside_diameter is not None
+        and wire_diameter is not None
+        and outside_diameter <= 2.0 * wire_diameter
+    )
+    print_alert_check(obj, "OutsideDiameterAtFree <= 2.0 * WireDiameter", outside_diameter_too_small)
+    if outside_diameter_too_small:
         has_errors = True
         errors.append("Outside diameter must be greater than two wire diameters.")
 
     try:
         coils_total = float(getattr(obj, "CoilsTotal"))
-        if coils_total < 1.0:
-            has_errors = True
-            errors.append("Total coils must be at least one.")
     except (AttributeError, TypeError, ValueError):
         coils_total = None
         warnings.append("Total coils input is incomplete.")
+    print_alert_check(obj, "CoilsTotal input is incomplete", coils_total is None)
+
+    coils_total_invalid = coils_total is not None and coils_total < 1.0
+    print_alert_check(obj, "CoilsTotal < 1.0", coils_total_invalid)
+    if coils_total_invalid:
+        has_errors = True
+        errors.append("Total coils must be at least one.")
 
     try:
         coils_inactive = float(getattr(obj, "CoilsInactive"))
     except (AttributeError, TypeError, ValueError):
         coils_inactive = None
 
-    if coils_total is not None and coils_inactive is not None and (
-        coils_inactive < 0.0 or coils_inactive > coils_total
-    ):
-        has_errors = True
-        errors.append("Inactive coils must be between zero and total coils.")
+    coils_inactive_out_of_range = (
+        coils_total is not None
+        and coils_inactive is not None
+        and (coils_inactive < 0.0 or coils_inactive > coils_total)
+    )
+    print_alert_check(obj, "CoilsInactive < 0.0 or CoilsInactive > CoilsTotal", coils_inactive_out_of_range)
+    if coils_total is not None and coils_inactive is not None:
+        if coils_inactive_out_of_range:
+            has_errors = True
+            errors.append("Inactive coils must be between zero and total coils.")
 
     try:
         coils_active = float(getattr(obj, "CoilsActive"))
-        if coils_active < 1.0:
-            warnings.append("Active coils are less than 1.")
     except (AttributeError, TypeError, ValueError):
-        pass
+        coils_active = None
+
+    coils_active_low = coils_active is not None and coils_active < 1.0
+    print_alert_check(obj, "CoilsActive < 1.0", coils_active_low)
+    if coils_active_low:
+        warnings.append("Active coils are less than 1.")
 
     try:
         length_at_free = float(getattr(obj, "LengthAtFree"))
-        if wire_diameter is not None and length_at_free <= wire_diameter:
-            has_errors = True
-            errors.append("Free length must be greater than wire diameter.")
     except (AttributeError, TypeError, ValueError):
         length_at_free = None
         warnings.append("Free length input is incomplete.")
+    print_alert_check(obj, "LengthAtFree input is incomplete", length_at_free is None)
+
+    length_at_free_too_short = (
+        length_at_free is not None
+        and wire_diameter is not None
+        and length_at_free <= wire_diameter
+    )
+    print_alert_check(obj, "LengthAtFree <= WireDiameter", length_at_free_too_short)
+    if length_at_free_too_short:
+        has_errors = True
+        errors.append("Free length must be greater than wire diameter.")
 
     try:
         length_at_solid = float(getattr(obj, "LengthAtSolid"))
     except (AttributeError, TypeError, ValueError):
         length_at_solid = None
 
-    if length_at_free is not None and length_at_solid is not None and length_at_free < length_at_solid:
+    free_length_below_solid = (
+        length_at_free is not None
+        and length_at_solid is not None
+        and length_at_free < length_at_solid
+    )
+    print_alert_check(obj, "LengthAtFree < LengthAtSolid", free_length_below_solid)
+    if free_length_below_solid:
         has_errors = True
         errors.append("Free length must not be less than solid length.")
 
     try:
         spring_index = float(getattr(obj, "SpringIndex"))
-        if spring_index < 4.0 or spring_index > 25.0:
-            warnings.append("Spring index is outside the recommended range of 4 to 25. Manufacturing may be difficult.")
     except (AttributeError, TypeError, ValueError):
-        pass
+        spring_index = None
+
+    spring_index_out_of_range = spring_index is not None and (spring_index < 4.0 or spring_index > 25.0)
+    print_alert_check(obj, "SpringIndex < 4.0 or SpringIndex > 25.0", spring_index_out_of_range)
+    if spring_index_out_of_range:
+        warnings.append("Spring index is outside the recommended range of 4 to 25. Manufacturing may be difficult.")
 
     set_alerts(obj, errors=errors if has_errors else [], warnings=warnings)
 
