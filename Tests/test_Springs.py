@@ -19,16 +19,20 @@ from Features.Extension import Utils as ExtensionUtils
 from Features.Torsion import Spring as TorsionSpring
 from Features.Torsion import Utils as TorsionUtils
 
+pytestmark = pytest.mark.skipif(
+    CompressionSpring.springocct is None,
+    reason="springocct runtime unavailable",
+)
+
 def _expected_compression_rate(outer_diameter, wire_diameter, coils):
-    obj = SimpleNamespace(
-        OutsideDiameterAtFree=outer_diameter,
-        WireDiameter=wire_diameter,
-        CoilsTotal=coils,
-        TorsionModulus=CompressionUtils.MUSIC_WIRE_SHEAR_MODULUS,
-        Rate=0.0,
+    mean_diameter = outer_diameter - wire_diameter
+    spring_index = mean_diameter / wire_diameter
+    return (
+        CompressionUtils.MUSIC_WIRE_HOT_FACTOR_KH
+        * (CompressionUtils.MUSIC_WIRE_SHEAR_MODULUS / 1.0e6)
+        * mean_diameter
+        / (8.0 * coils * spring_index ** 4)
     )
-    CompressionUtils.update_properties(obj)
-    return obj.Rate
 
 
 def _expected_extension_rate(outer_diameter, wire_diameter, coils):
@@ -129,13 +133,13 @@ class TestSpring(unittest.TestCase):
         spring = CompressionSpring.make()
         self.doc.recompute()
         self._analyze_spring(spring, {
-            "OutsideDiameterAtFree": 20.0,
-            "WireDiameter": 2.0,
-            "Pitch": 2.5,
-            "LengthAtFree": 25.0,
+            "OutsideDiameterAtFree": 28.0,
+            "WireDiameter": 2.8,
+            "Pitch": 7.72,
+            "LengthAtFree": 80.0,
             "CoilsTotal": 10.0,
             "TorsionModulus": CompressionUtils.MUSIC_WIRE_SHEAR_MODULUS,
-            "Rate": _expected_compression_rate(20.0, 2.0, 10.0)
+            "Rate": _expected_compression_rate(28.0, 2.8, 10.0)
         })
 
     def test_extension_spring(self):
@@ -230,5 +234,6 @@ class TestSpring(unittest.TestCase):
                     "LengthAtFree": h
                 })
 
-print("✅ Entering unittest.main() ...")
-unittest.main(module=None, verbosity=2)
+if __name__ == "__main__":
+    print("✅ Entering unittest.main() ...")
+    unittest.main(module=None, verbosity=2)

@@ -14,12 +14,79 @@ except ImportError as exc:
     springocct = None
 #    FreeCAD.Console.PrintError(f"springocct unavailable: {exc}\n")
 
+# Display-only tessellation workaround.
+#
+# Tight compression springs can render with missing visual sections when FreeCAD's
+# default Part view deviation is used. The generated BRep can still be valid; the
+# failure is in the display mesh being too coarse for low spring-index geometry,
+# especially around spring index 3. Keep the tighter mesh local to that region.
+DEFAULT_VIEW_DEVIATION = 0.5
+DEFAULT_VIEW_ANGULAR_DEFLECTION = 28.5
+MIN_VIEW_QUALITY_SPRING_INDEX = 3.0
+MAX_VIEW_QUALITY_SPRING_INDEX = 4.0
+MIN_VIEW_DEVIATION = 0.05
+MIN_VIEW_ANGULAR_DEFLECTION = 10.0
+
 def _log_console(message: str) -> None:
 #    FreeCAD.Console.PrintMessage(message)
     try:
         print(message, end="")
     except Exception:
         pass
+
+def _spring_index_view_quality_targets(spring_index):
+    if spring_index <= MIN_VIEW_QUALITY_SPRING_INDEX:
+        return MIN_VIEW_DEVIATION, MIN_VIEW_ANGULAR_DEFLECTION
+    if spring_index >= MAX_VIEW_QUALITY_SPRING_INDEX:
+        return DEFAULT_VIEW_DEVIATION, DEFAULT_VIEW_ANGULAR_DEFLECTION
+
+    index_span = MAX_VIEW_QUALITY_SPRING_INDEX - MIN_VIEW_QUALITY_SPRING_INDEX
+    ratio = (spring_index - MIN_VIEW_QUALITY_SPRING_INDEX) / index_span
+    return (
+        MIN_VIEW_DEVIATION + ratio * (DEFAULT_VIEW_DEVIATION - MIN_VIEW_DEVIATION),
+        MIN_VIEW_ANGULAR_DEFLECTION
+        + ratio * (DEFAULT_VIEW_ANGULAR_DEFLECTION - MIN_VIEW_ANGULAR_DEFLECTION),
+    )
+
+def _as_float(value):
+    try:
+        return float(value)
+    except Exception:
+        return float(getattr(value, "Value"))
+
+def _set_view_numeric_property(vobj, name, target):
+    if not hasattr(vobj, name):
+        return False
+
+    try:
+        current = _as_float(getattr(vobj, name))
+    except Exception:
+        return False
+
+    if abs(current - target) <= 1e-9:
+        return False
+
+    setattr(vobj, name, target)
+    return True
+
+def _apply_spring_index_view_quality(obj):
+    try:
+        spring_index = float(getattr(obj, "SpringIndex", 0.0))
+        vobj = obj.ViewObject
+    except Exception:
+        return
+
+    target_deviation, target_angular = _spring_index_view_quality_targets(spring_index)
+    changed_deviation = _set_view_numeric_property(vobj, "Deviation", target_deviation)
+    changed_angular = _set_view_numeric_property(vobj, "AngularDeflection", target_angular)
+
+    if changed_deviation or changed_angular:
+        FreeCAD.Console.PrintMessage(
+            "[Spring View] "
+            f"SpringIndex={spring_index:g}; "
+            f"Deviation={getattr(vobj, 'Deviation', None)} "
+            f"AngularDeflection={getattr(vobj, 'AngularDeflection', None)}\n"
+        )
 
 class CompressionSpring:
     def __init__(self, obj):
@@ -97,6 +164,7 @@ class CompressionSpring:
         ViewProviderSpring(obj.ViewObject)
         SpringUtils.update_globals(obj)
         SpringUtils.update_properties(obj)
+        _apply_spring_index_view_quality(obj)
         CoreUtils.update_basic_alerts(obj)
 
     def execute(self, obj):
@@ -116,11 +184,12 @@ class CompressionSpring:
         except Exception as e:
             raise
 #        FreeCAD.Console.PrintMessage("springocct compression_spring_solid: " f"return: {spring}\n")
+        SpringUtils.update_globals(obj)
+        SpringUtils.update_properties(obj)
+        _apply_spring_index_view_quality(obj)
         obj.Shape = spring
 #        print("Compression spring solid created and displayed successfully.")
 
-        SpringUtils.update_globals(obj)
-        SpringUtils.update_properties(obj)
         CoreUtils.update_basic_alerts(obj)
         CoreUtils.refresh_alert_panel_for(obj)
 
