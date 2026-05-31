@@ -36,27 +36,20 @@ class ViewProviderSpring:
         return mode
 
     def setEdit(self, vobj, mode=0):
+        return False
+
+    def unsetEdit(self, vobj, mode=0):
+        return False
+
+    def doubleClicked(self, vobj):
         if FreeCADGui is None:
             return False
         try:
-            from Gui import SpringAlertsTaskPanel
+            from Gui import SpringAlertsDockWidget
         except Exception:
             return False
-        SpringAlertsTaskPanel.open_task_panel(vobj.Object)
+        SpringAlertsDockWidget.show_dock_for_object(vobj.Object)
         return True
-
-    def unsetEdit(self, vobj, mode=0):
-        if FreeCADGui is not None:
-            try:
-                from Gui import SpringAlertsTaskPanel
-                SpringAlertsTaskPanel.restore_task_panel_color()
-            except Exception:
-                pass
-            FreeCADGui.Control.closeDialog()
-        return True
-
-    def doubleClicked(self, vobj):
-        return self.setEdit(vobj)
 
     def onChanged(self, vobj, prop):
         pass

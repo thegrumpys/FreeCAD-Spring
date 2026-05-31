@@ -1,10 +1,11 @@
-"""Task panel shown when editing a Spring object."""
+"""Dock widget for inspecting alerts on Spring objects."""
 
 from __future__ import annotations
 
 import html
 import re
 
+import FreeCAD
 import FreeCADGui
 
 try:
@@ -12,7 +13,8 @@ try:
 except ImportError:
     from PySide import QtCore, QtGui as QtWidgets
 
-_active_panel = None
+_active_dock = None
+_selection_observer = None
 
 
 def _linkify(message: str) -> str:
@@ -105,8 +107,46 @@ def _same_object(left, right) -> bool:
     )
 
 
-class SpringAlertsTaskPanel:
-    """FreeCAD task panel for inspecting alerts on the edited spring."""
+def _object_from_selection(doc_name, obj_name):
+    try:
+        document = FreeCAD.getDocument(doc_name)
+        return document.getObject(obj_name)
+    except Exception:
+        return None
+
+
+def _has_alerts_interface(obj) -> bool:
+    if obj is None:
+        return False
+    if any(hasattr(obj, attr) for attr in ("Alerts", "SpringAlerts", "AlertErrors", "AlertWarnings", "AlertInfos")):
+        return True
+    proxy = getattr(obj, "Proxy", None)
+    return proxy is not None and hasattr(proxy, "getAlerts")
+
+
+class _SpringAlertsSelectionObserver:
+    def addSelection(self, doc, obj, sub, pnt):  # noqa: N802 - FreeCAD callback name
+        selected = _object_from_selection(doc, obj)
+        if _active_dock is not None and _has_alerts_interface(selected):
+            _active_dock.set_object(selected)
+
+
+def _ensure_selection_observer():
+    global _selection_observer
+
+    if _selection_observer is not None:
+        return
+
+    observer = _SpringAlertsSelectionObserver()
+    try:
+        FreeCADGui.Selection.addObserver(observer)
+    except Exception:
+        return
+    _selection_observer = observer
+
+
+class SpringAlertsWidget:
+    """Widget for inspecting alerts on the selected spring."""
 
     def __init__(self, obj):
         self.obj = obj
@@ -134,6 +174,14 @@ class SpringAlertsTaskPanel:
         layout.addWidget(self._title)
         layout.addWidget(self._counts)
         layout.addWidget(self._tree, 1)
+        self.refresh()
+
+    def set_object(self, obj):
+        if _same_object(self.obj, obj):
+            self.refresh()
+            return
+        self._restore_color()
+        self.obj = obj
         self.refresh()
 
     def refresh(self):
@@ -178,29 +226,6 @@ class SpringAlertsTaskPanel:
             group.addChild(child)
             self._tree.setItemWidget(child, 0, label)
 
-    def getStandardButtons(self):
-        return QtWidgets.QDialogButtonBox.Close
-
-    def accept(self):
-        self._close_edit_mode()
-        return True
-
-    def reject(self):
-        self._close_edit_mode()
-        return True
-
-    def _close_edit_mode(self):
-        global _active_panel
-
-        self._restore_color()
-        if _active_panel is self:
-            _active_panel = None
-        try:
-            if FreeCADGui.ActiveDocument is not None:
-                FreeCADGui.ActiveDocument.resetEdit()
-        except Exception:
-            FreeCADGui.Control.closeDialog()
-
     def _update_error_color(self, has_errors):
         vobj = getattr(self.obj, "ViewObject", None)
         if vobj is None or not hasattr(vobj, "ShapeColor"):
@@ -229,41 +254,76 @@ class SpringAlertsTaskPanel:
         self._original_shape_color_set = False
 
 
-def open_task_panel(obj):
-    global _active_panel
+class SpringAlertsDockWidget(QtWidgets.QDockWidget):
+    """Non-modal FreeCAD dock for spring alerts."""
 
-    if _active_panel is not None:
-        if _same_object(_active_panel.obj, obj):
-            _active_panel.refresh()
-            return _active_panel
-        _active_panel._restore_color()
-        _active_panel = None
+    def __init__(self, obj, parent=None):
+        super().__init__("Spring Alerts", parent)
+        self.alerts_widget = SpringAlertsWidget(obj)
+        self.setObjectName("SpringAlertsDockWidget")
+        self.setWidget(self.alerts_widget.form)
+        self.setAllowedAreas(
+            QtCore.Qt.LeftDockWidgetArea
+            | QtCore.Qt.RightDockWidgetArea
+            | QtCore.Qt.BottomDockWidgetArea
+        )
+
+    def set_object(self, obj):
+        self.alerts_widget.set_object(obj)
+
+    def refresh(self):
+        self.alerts_widget.refresh()
+
+    def restore_color(self):
+        self.alerts_widget._restore_color()
+
+    def closeEvent(self, event):  # noqa: N802 - Qt callback name
+        global _active_dock
+
+        self.restore_color()
+        if _active_dock is self:
+            _active_dock = None
+        super().closeEvent(event)
+
+
+def show_dock_for_object(obj, activate=True):
+    global _active_dock
+
+    if not _has_alerts_interface(obj):
+        return None
+
+    _ensure_selection_observer()
+
+    if _active_dock is not None:
+        _active_dock.set_object(obj)
+        _active_dock.show()
+        if activate:
+            _active_dock.raise_()
+            _active_dock.activateWindow()
+        return _active_dock
+
+    main_window = FreeCADGui.getMainWindow()
+    dock = SpringAlertsDockWidget(obj, main_window)
+    main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+    dock.show()
+    if activate:
+        dock.raise_()
         try:
-            FreeCADGui.Control.closeDialog()
+            dock.activateWindow()
         except Exception:
             pass
-
-    panel = SpringAlertsTaskPanel(obj)
-    try:
-        FreeCADGui.Control.showDialog(panel)
-    except RuntimeError:
-        FreeCADGui.Control.closeDialog()
-        FreeCADGui.Control.showDialog(panel)
-    _active_panel = panel
-    return panel
+    _active_dock = dock
+    return dock
 
 
-def refresh_task_panel_if_visible(obj=None):
-    if _active_panel is None:
+def refresh_dock_if_visible(obj=None):
+    if _active_dock is None:
         return
-    if obj is not None and not _same_object(_active_panel.obj, obj):
+    if obj is not None and not _same_object(_active_dock.alerts_widget.obj, obj):
         return
-    _active_panel.refresh()
+    _active_dock.refresh()
 
 
-def restore_task_panel_color():
-    global _active_panel
-
-    if _active_panel is not None:
-        _active_panel._restore_color()
-        _active_panel = None
+def restore_dock_color():
+    if _active_dock is not None:
+        _active_dock.restore_color()

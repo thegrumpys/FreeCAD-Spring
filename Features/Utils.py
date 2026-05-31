@@ -275,13 +275,13 @@ def update_basic_alerts(obj) -> None:
 
 
 def refresh_alert_panel_for(obj) -> None:
-    """Refresh the alerts task panel if it is open."""
+    """Refresh the alerts dock if it is open."""
 
     try:
-        from Gui import SpringAlertsTaskPanel
+        from Gui import SpringAlertsDockWidget
     except Exception:
         return
     try:
-        SpringAlertsTaskPanel.refresh_task_panel_if_visible(obj)
+        SpringAlertsDockWidget.refresh_dock_if_visible(obj)
     except Exception:
         pass
