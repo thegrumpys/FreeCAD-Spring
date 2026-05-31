@@ -1,4 +1,5 @@
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepAlgoAPI_Common.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -35,6 +36,7 @@
 #include <gp_Lin2d.hxx>
 #include <gp_Pnt2d.hxx>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <algorithm>
@@ -42,8 +44,11 @@
 #include <limits>
 #include <TColgp_Array1OfPnt2d.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TopAbs.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Solid.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Wire.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -246,6 +251,132 @@ static Standard_Real SafeVolume(const TopoDS_Shape& S)
     GProp_GProps props;
     BRepGProp::VolumeProperties(S, props);
     return props.Mass();
+}
+
+static TopoDS_Shape KeepLargestSolid(const TopoDS_Shape& shape)
+{
+    if (shape.IsNull()) {
+        return shape;
+    }
+
+    TopoDS_Solid largestSolid;
+    Standard_Real largestVolume = -1.0;
+    Standard_Integer solidCount = 0;
+
+    for (TopExp_Explorer explorer(shape, TopAbs_SOLID); explorer.More(); explorer.Next()) {
+        const TopoDS_Solid solid = TopoDS::Solid(explorer.Current());
+        const Standard_Real volume = SafeVolume(solid);
+        ++solidCount;
+        if (volume > largestVolume) {
+            largestVolume = volume;
+            largestSolid = solid;
+        }
+    }
+
+    if (solidCount <= 1 || largestSolid.IsNull()) {
+        return shape;
+    }
+
+    SPRING_DEBUG_STREAM << "Keeping largest solid from " << solidCount
+                        << " solids after pigtail grounding; volume="
+                        << largestVolume << std::endl;
+    return largestSolid;
+}
+
+static std::string ShapeSummary(const TopoDS_Shape& shape)
+{
+    if (shape.IsNull()) {
+        return "shape=null";
+    }
+
+    Standard_Integer solidCount = 0;
+    for (TopExp_Explorer explorer(shape, TopAbs_SOLID); explorer.More(); explorer.Next()) {
+        ++solidCount;
+    }
+
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+    box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+    std::ostringstream summary;
+    summary << "shapeType=" << static_cast<int>(shape.ShapeType())
+            << " solids=" << solidCount
+            << " volume=" << SafeVolume(shape)
+            << " bbox=("
+            << xmin << "," << ymin << "," << zmin
+            << " -> "
+            << xmax << "," << ymax << "," << zmax
+            << ")";
+    return summary.str();
+}
+
+static TopoDS_Shape CutShape(
+    const TopoDS_Shape& base,
+    const TopoDS_Shape& tool,
+    const char* label,
+    const Standard_Real fuzzyValue = 0.0)
+{
+    BRepAlgoAPI_Cut cut(base, tool);
+    if (fuzzyValue > 0.0) {
+        cut.SetFuzzyValue(fuzzyValue);
+    }
+    cut.Build();
+    if (!cut.IsDone()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " failed: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool)
+        );
+    }
+
+    TopoDS_Shape result = cut.Shape();
+    if (result.IsNull()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " produced a null shape: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool)
+        );
+    }
+    return result;
+}
+
+static TopoDS_Shape CommonShape(
+    const TopoDS_Shape& base,
+    const TopoDS_Shape& tool,
+    const char* label,
+    const Standard_Real fuzzyValue = 0.0)
+{
+    BRepAlgoAPI_Common common(base, tool);
+    if (fuzzyValue > 0.0) {
+        common.SetFuzzyValue(fuzzyValue);
+    }
+    common.Build();
+    if (!common.IsDone()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " failed: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool)
+        );
+    }
+
+    TopoDS_Shape result = common.Shape();
+    if (result.IsNull()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " produced a null shape: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool)
+        );
+    }
+    return result;
 }
 
 static void DumpBBox(const std::string& name, const TopoDS_Shape& S)
@@ -2007,7 +2138,10 @@ TopoDS_Shape compression_spring_solid(
 
             // Create Bottom Cutter Box
             SPRING_DEBUG_STREAM << "Create Bottom Cutter Box" << std::endl;
-            BRepPrimAPI_MakeBox bottomHelixBox(OD_Free * 2.0, OD_Free * 2.0, Wire_Dia * 2.0 + grindExtra);
+            BRepPrimAPI_MakeBox bottomHelixBox(
+                OD_Free * 2.0,
+                OD_Free * 2.0,
+                Wire_Dia * 2.0 + grindExtra);
             const TopoDS_Shape& bottomHelixCutter = bottomHelixBox.Shape();
             gp_Trsf bottomTrsf;
             bottomTrsf.SetTranslation(gp_Vec(-OD_Free, -OD_Free, -Wire_Dia * 2.0));
@@ -2033,15 +2167,45 @@ TopoDS_Shape compression_spring_solid(
             // Cut Bottom and Top Cutter Boxes from Total Helix Pipe
             SPRING_DEBUG_STREAM << "Create Compression Spring from Helix Pipe minus Cutters" << std::endl;
 
-            TopoDS_Shape cutAfterBottom = BRepAlgoAPI_Cut(helixPipeShape, bottomHelixCutterTransformed);
+            const Standard_Real groundFuzzyValue = hasPigtailEnd ? 0.01 * Wire_Dia : 0.0;
+
+            TopoDS_Shape cutAfterBottom = CutShape(
+                helixPipeShape,
+                bottomHelixCutterTransformed,
+                "bottom ground cut",
+                groundFuzzyValue);
             DumpShapeState("cutAfterBottom", cutAfterBottom);
             DumpCutDelta("bottom cut", helixPipeShape, cutAfterBottom);
 
-            TopoDS_Shape cutAfterTop = BRepAlgoAPI_Cut(cutAfterBottom, topHelixCutterTransformed);
+            TopoDS_Shape cutAfterTop = CutShape(
+                cutAfterBottom,
+                topHelixCutterTransformed,
+                "top ground cut",
+                groundFuzzyValue);
             DumpShapeState("cutAfterTop", cutAfterTop);
             DumpCutDelta("top cut", cutAfterBottom, cutAfterTop);
 
-            compressionSpring = cutAfterTop;
+            compressionSpring = hasPigtailEnd ? KeepLargestSolid(cutAfterTop) : cutAfterTop;
+            if (hasPigtailEnd) {
+                BRepPrimAPI_MakeBox groundEnvelopeBox(OD_Free * 2.0, OD_Free * 2.0, L_Free);
+                const TopoDS_Shape& groundEnvelope = groundEnvelopeBox.Shape();
+                gp_Trsf envelopeTrsf;
+                envelopeTrsf.SetTranslation(gp_Vec(-OD_Free, -OD_Free, 0.0));
+                TopoDS_Shape groundEnvelopeTransformed =
+                    BRepBuilderAPI_Transform(groundEnvelope, envelopeTrsf);
+
+                DumpBBox("groundEnvelopeTransformed", groundEnvelopeTransformed);
+                DumpBBoxOverlap("compressionSpring before envelope clip", compressionSpring,
+                                "groundEnvelopeTransformed", groundEnvelopeTransformed);
+
+                compressionSpring = KeepLargestSolid(
+                    CommonShape(
+                        compressionSpring,
+                        groundEnvelopeTransformed,
+                        "pigtail ground envelope clip",
+                        groundFuzzyValue));
+            }
+            DumpShapeState("compressionSpring after ground cleanup", compressionSpring);
         } else {
             SPRING_DEBUG_STREAM << "Create Compression Spring from Helix Pipe directly" << std::endl;
             compressionSpring = helixPipeShape;
@@ -2069,7 +2233,10 @@ TopoDS_Shape compression_spring_solid(
 
     BRepCheck_Analyzer finalAnalyzer(compressionSpring);
     if (!finalAnalyzer.IsValid()) {
-        throw Standard_Failure("Produced an invalid final shape");
+        throw std::runtime_error(
+            std::string("Produced an invalid final shape: ") +
+            ShapeSummary(compressionSpring)
+        );
     }
 
     SPRING_DEBUG_STREAM << "Ending compression_spring_solid" << std::endl;

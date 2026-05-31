@@ -44,6 +44,13 @@ MUSIC_WIRE_SISR = 399.91
 
 _EPSILON = 1.0e-6
 
+PIGTAIL_HIGH_SPRING_INDEX = 7.0
+PIGTAIL_LOW_SPRING_INDEX = 4.5
+PIGTAIL_HIGH_INDEX_END_COILS = 0.65
+PIGTAIL_LOW_INDEX_END_COILS = 0.25
+PIGTAIL_DEFAULT_TRANSITION_TURNS = 0.5
+PIGTAIL_LOW_INDEX_TRANSITION_TURNS = 1.0
+
 # Utils.py
 import math
 import FreeCAD
@@ -441,6 +448,34 @@ def _enum_index(enum_type: str, name: str, selection) -> int:
 #        print(f"[_enum_index] return 0");
         return 0
 
+def _pigtail_effective_active_coils(spring_index, total_coils):
+    """Return pigtail active coils mirrored from springocct pitch geometry."""
+
+    if spring_index >= PIGTAIL_HIGH_SPRING_INDEX:
+        end_helix_coils = PIGTAIL_HIGH_INDEX_END_COILS
+    elif spring_index <= PIGTAIL_LOW_SPRING_INDEX:
+        end_helix_coils = PIGTAIL_LOW_INDEX_END_COILS
+    else:
+        x = PIGTAIL_HIGH_SPRING_INDEX - spring_index
+        end_helix_coils = PIGTAIL_HIGH_INDEX_END_COILS - 0.07 * x - 0.036 * x * x
+
+    if spring_index >= PIGTAIL_HIGH_SPRING_INDEX:
+        transition_turns = PIGTAIL_DEFAULT_TRANSITION_TURNS
+    elif spring_index <= PIGTAIL_LOW_SPRING_INDEX:
+        transition_turns = PIGTAIL_LOW_INDEX_TRANSITION_TURNS
+    else:
+        transition_turns = (
+            PIGTAIL_DEFAULT_TRANSITION_TURNS
+            + (PIGTAIL_HIGH_SPRING_INDEX - spring_index)
+            * (
+                (PIGTAIL_LOW_INDEX_TRANSITION_TURNS - PIGTAIL_DEFAULT_TRANSITION_TURNS)
+                / (PIGTAIL_HIGH_SPRING_INDEX - PIGTAIL_LOW_SPRING_INDEX)
+            )
+        )
+
+    middle_helix_coils = total_coils - 2.0 * end_helix_coils - 2.0 * transition_turns
+    return middle_helix_coils + transition_turns
+
 def update_globals(obj) -> None:
     """Update global properties based on the object's global properties."""
 #
@@ -585,8 +620,11 @@ def update_properties(obj) -> None:
     obj.SpringIndex = (obj.MeanDiameterAtFree / obj.WireDiameter)
     kc = (4.0 * obj.SpringIndex - 1.0) / (4.0 * obj.SpringIndex - 4.0)
     ks = kc + 0.615 / obj.SpringIndex
-    obj.CoilsActive = obj.CoilsTotal - obj.CoilsInactive
     end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
+    if end_type_index in (9, 10):
+        obj.CoilsActive = _pigtail_effective_active_coils(obj.SpringIndex, obj.CoilsTotal)
+    else:
+        obj.CoilsActive = obj.CoilsTotal - obj.CoilsInactive
 #    print(f"[update_properties] end_type_index={end_type_index}")
     r = 0.5; # Taper_Amount
     match end_type_index:
@@ -607,9 +645,9 @@ def update_properties(obj) -> None:
         case 8: # Tapered Closed & Ground
             obj.Pitch = (obj.LengthAtFree - ((3.0 + r) / 2.0) * obj.WireDiameter) / obj.CoilsActive
         case 9: # Pig Tail Closed
-            obj.Pitch = (obj.LengthAtFree - 3.0 * obj.WireDiameter) / obj.CoilsActive
+            obj.Pitch = (obj.LengthAtFree - obj.WireDiameter) / obj.CoilsActive
         case 10: # Pig Tail Closed & Ground
-            obj.Pitch = (obj.LengthAtFree - 2.0 * obj.WireDiameter) / obj.CoilsActive
+            obj.Pitch = obj.LengthAtFree / obj.CoilsActive
         case 11: # User Specified Open
             obj.Pitch = (obj.LengthAtFree - (obj.CoilsInactive + 1.0) * obj.WireDiameter) / obj.CoilsActive
         case 12: # User Specified Open & Ground
@@ -626,7 +664,12 @@ def update_properties(obj) -> None:
     obj.LengthAtDeflection2 = obj.LengthAtFree - obj.Deflection2
     obj.LengthStroke = obj.LengthAtDeflection1 - obj.LengthAtDeflection2
     obj.Slenderness = obj.LengthAtFree / obj.MeanDiameterAtFree
-    obj.LengthAtSolid = obj.WireDiameter * (obj.CoilsTotal + (1.0 - obj.GrindAmount - obj.CoilsInactive * obj.TaperAmount))
+    if end_type_index == 9:
+        obj.LengthAtSolid = obj.WireDiameter * (obj.CoilsActive + 1.0)
+    elif end_type_index == 10:
+        obj.LengthAtSolid = obj.WireDiameter * obj.CoilsActive
+    else:
+        obj.LengthAtSolid = obj.WireDiameter * (obj.CoilsTotal + (1.0 - obj.GrindAmount - obj.CoilsInactive * obj.TaperAmount))
     obj.ForceAtSolid = obj.Rate * (obj.LengthAtFree - obj.LengthAtSolid)
     s_f = ks * 8.0 * obj.MeanDiameterAtFree / (math.pi * obj.WireDiameter * obj.WireDiameter * obj.WireDiameter)
     obj.StressAtDeflection1 = s_f * obj.ForceAtDeflection1

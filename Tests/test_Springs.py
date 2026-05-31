@@ -35,6 +35,22 @@ def _expected_compression_rate(outer_diameter, wire_diameter, coils):
     )
 
 
+def _expected_pigtail_effective_active_coils(outer_diameter, wire_diameter, total_coils):
+    spring_index = (outer_diameter - wire_diameter) / wire_diameter
+    if spring_index >= 7.0:
+        end_helix_coils = 0.65
+        transition_turns = 0.5
+    elif spring_index <= 4.5:
+        end_helix_coils = 0.25
+        transition_turns = 1.0
+    else:
+        x = 7.0 - spring_index
+        end_helix_coils = 0.65 - 0.07 * x - 0.036 * x * x
+        transition_turns = 0.5 + (7.0 - spring_index) * ((1.0 - 0.5) / (7.0 - 4.5))
+    middle_helix_coils = total_coils - 2.0 * end_helix_coils - 2.0 * transition_turns
+    return middle_helix_coils + transition_turns
+
+
 def _expected_extension_rate(outer_diameter, wire_diameter, coils):
     obj = SimpleNamespace(
         OutsideDiameterAtFree=outer_diameter,
@@ -199,6 +215,43 @@ class TestSpring(unittest.TestCase):
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
         self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 1.0)
         self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+
+        spring.EndType = "PigtailClosed"
+        self.doc.recompute()
+        self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
+        self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 0.0)
+        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+
+        spring.EndType = "PigtailClosed&Ground"
+        self.doc.recompute()
+        self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
+        self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 1.0)
+        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+
+    def test_pigtail_properties_match_generated_geometry_terms(self):
+        spring = CompressionSpring.make()
+        spring.OutsideDiameterAtFree = 28.0
+        spring.WireDiameter = 2.8
+        spring.CoilsTotal = 10.0
+        spring.LengthAtFree = 80.0
+
+        expected_active = _expected_pigtail_effective_active_coils(28.0, 2.8, 10.0)
+
+        spring.EndType = "PigtailClosed"
+        self.doc.recompute()
+        self.assertAlmostEqual(spring.CoilsInactive, 2.0)
+        self.assertAlmostEqual(spring.CoilsActive, expected_active)
+        self.assertAlmostEqual(spring.Pitch, (80.0 - 2.8) / expected_active)
+        self.assertAlmostEqual(spring.LengthAtSolid, 2.8 * (expected_active + 1.0))
+        self.assertAlmostEqual(spring.Rate, _expected_compression_rate(28.0, 2.8, expected_active))
+
+        spring.EndType = "PigtailClosed&Ground"
+        self.doc.recompute()
+        self.assertAlmostEqual(spring.CoilsInactive, 2.0)
+        self.assertAlmostEqual(spring.CoilsActive, expected_active)
+        self.assertAlmostEqual(spring.Pitch, 80.0 / expected_active)
+        self.assertAlmostEqual(spring.LengthAtSolid, 2.8 * expected_active)
+        self.assertAlmostEqual(spring.Rate, _expected_compression_rate(28.0, 2.8, expected_active))
 
     def test_open_variants_have_no_closed_coils(self):
         spring = CompressionSpring.make()

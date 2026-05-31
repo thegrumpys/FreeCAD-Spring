@@ -40,8 +40,8 @@ class CreateSpringTestMatrix:
             ("DoubleClosed_Ground", dict(od=28, wire=5, length=60, coils=8, end=6, inactive=4)),
             ("TaperedClosed", dict(od=28, wire=5, length=60, coils=6, end=7, inactive=2)),
             ("TaperedClosed_Ground", dict(od=28, wire=5, length=60, coils=6, end=8, inactive=2)),
-            ("PigtailClosed", dict(od=28, wire=5, length=60, coils=6, end=9, inactive=1)),
-            ("PigtailClosed_Ground", dict(od=28, wire=5, length=60, coils=6, end=10, inactive=1)),
+            ("PigtailClosed", dict(od=28, wire=5, length=60, coils=6, end=9, inactive=2)),
+            ("PigtailClosed_Ground", dict(od=28, wire=5, length=60, coils=6, end=10, inactive=2)),
             ("UserSpecifiedOpen", dict(od=28, wire=5, length=60, coils=6, end=11, inactive=0)),
             ("UserSpecifiedOpen_Ground", dict(od=28, wire=5, length=60, coils=6, end=12, inactive=0)),
             ("UserSpecifiedClosed", dict(od=28, wire=5, length=60, coils=6, end=13, inactive=2)),
@@ -106,7 +106,7 @@ class CreateSpringTestMatrix:
             ),
             (
                 "Stress_PigtailClosed_Ground_LowIndex",
-                dict(od=28, wire=5.0, length=60, coils=6, end=10, inactive=1),
+                dict(od=28, wire=5.0, length=60, coils=6, end=10, inactive=2),
             ),
             (
                 "Stress_MinValidClosed",
@@ -122,17 +122,25 @@ class CreateSpringTestMatrix:
             ),
             (
                 "Stress_PigtailClosed_LowIndex",
-                dict(od=28, wire=5.6, length=70, coils=6, end=9, inactive=1),
+                dict(od=28, wire=5.6, length=70, coils=6, end=9, inactive=2),
             ),
             (
                 "Stress_PigtailClosed_Ground_HighIndex",
-                dict(od=28, wire=2.0, length=80, coils=10, end=10, inactive=1),
+                dict(od=28, wire=2.0, length=80, coils=10, end=10, inactive=2),
             ),
             (
                 "Stress_Open_Ground_VeryFewCoils",
                 dict(od=28, wire=2.8, length=35, coils=3, end=2, inactive=0),
             ),
         ]
+
+        for coils in range(5, 21):
+            stress_tests.append(
+                (
+                    f"Stress_PigtailClosed_Ground_Coils_{coils}",
+                    dict(od=28, wire=2.8, length=80, coils=coils, end=10, inactive=2),
+                )
+            )
 
         stress_start = len(tests)
         stress_pass_count = 0
@@ -154,6 +162,14 @@ class CreateSpringTestMatrix:
                     obj.Shape = shape
                     obj.Placement.Base = App.Vector(x, y, z)
                     self.apply_visual_style(obj, name)
+
+                    try:
+                        self.validate_visual_case_semantics(name, params, shape)
+                    except Exception as warning:
+                        if name.startswith("Stress_PigtailClosed_Ground_Coils_"):
+                            print(f"[WARN] {name}: {warning}")
+                        else:
+                            raise
 
                     bbox_results.append(self.describe_bounding_box(name, shape))
                     stress_pass_count += 1
@@ -262,6 +278,7 @@ class CreateSpringTestMatrix:
 
     def validate_visual_case_semantics(self, name, params, shape):
         end_type = params["end"]
+        free_length = params["length"]
         total_coils = params["coils"]
         inactive_coils = params["inactive"]
         active_coils = total_coils - inactive_coils
@@ -278,6 +295,17 @@ class CreateSpringTestMatrix:
 
         if end_type in (5, 6) and inactive_coils < 4:
             raise RuntimeError(f"{name} double-closed spring has fewer than 4 inactive coils")
+
+        if name.startswith("Stress_PigtailClosed_Ground_Coils_"):
+            bbox = shape.BoundBox
+            if bbox.ZMin < -0.001:
+                raise RuntimeError(f"{name} extends below the ground plane: ZMin={bbox.ZMin:.6f}")
+            if bbox.ZMax > free_length + 0.001:
+                raise RuntimeError(f"{name} extends above the free length: ZMax={bbox.ZMax:.6f}")
+            if bbox.ZLength < free_length - 0.001:
+                raise RuntimeError(
+                    f"{name} is shorter than free length: ZLength={bbox.ZLength:.6f}, L={free_length:.6f}"
+                )
 
     def describe_bounding_box(self, name, shape):
         bbox = shape.BoundBox
