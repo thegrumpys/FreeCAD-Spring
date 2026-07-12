@@ -22,12 +22,14 @@ class SpringWorkbench(Gui.Workbench):
             CreateExtensionSpring,
             CreateTorsionSpring,
             CreateSpringTestMatrix,
+            CreatePigtailClosedGroundSweep,
         )
         # Register commands
         CreateCompressionSpring.register()
         CreateExtensionSpring.register()
         CreateTorsionSpring.register()
         CreateSpringTestMatrix.register()
+        CreatePigtailClosedGroundSweep.register()
 
         # Build toolbar/menu
         self.list = [
@@ -35,6 +37,7 @@ class SpringWorkbench(Gui.Workbench):
             "Spring_CreateExtensionSpring",
             "Spring_CreateTorsionSpring",
             "Spring_TestMatrix",
+            "Spring_PigtailClosedGroundSweep",
         ]
         self.appendToolbar("Spring", self.list)
         self.appendMenu("Spring", self.list)

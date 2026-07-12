@@ -5,4 +5,5 @@ __all__ = [
     "CreateExtensionSpring",
     "CreateTorsionSpring",
     "CreateSpringTestMatrix",
+    "CreatePigtailClosedGroundSweep",
 ]

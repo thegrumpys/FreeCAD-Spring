@@ -27,8 +27,10 @@
 
 #include <string>
 #include <stdexcept>
+#include <cstdlib>
 
 #include <Standard_Handle.hxx>
+#include <Standard_Failure.hxx>
 
 namespace py = pybind11;
 
@@ -221,18 +223,37 @@ PYBIND11_MODULE(springocct, m)
            double total_coils,
            int end_type,
            double inactive_coils) -> py::object {
-            TopoDS_Shape shape = compression_spring_solid(
-                outer_diameter,
-                wire_diameter,
-                free_length,
-                total_coils,
-                end_type,
-                inactive_coils);
+            const char* stage = "compression_spring_solid";
+            try {
+                TopoDS_Shape shape = compression_spring_solid(
+                    outer_diameter,
+                    wire_diameter,
+                    free_length,
+                    total_coils,
+                    end_type,
+                    inactive_coils);
 
-            Py::Object pyShape = Part::shape2pyshape(shape);
-            PyObject* owned = pyShape.ptr();
-            Py_INCREF(owned);
-            return py::reinterpret_steal<py::object>(owned);
+                stage = "Part::shape2pyshape";
+                Py::Object pyShape = Part::shape2pyshape(shape);
+                PyObject* owned = pyShape.ptr();
+                Py_INCREF(owned);
+                return py::reinterpret_steal<py::object>(owned);
+            } catch (const Standard_Failure& err) {
+                const char* message = err.GetMessageString();
+                throw std::runtime_error(
+                    std::string(stage) +
+                    " OCCT failure: " +
+                    (message ? message : "Standard_Failure"));
+            } catch (const std::exception& err) {
+                throw std::runtime_error(
+                    std::string(stage) +
+                    " std::exception: " +
+                    err.what());
+            } catch (...) {
+                throw std::runtime_error(
+                    std::string(stage) +
+                    " unknown non-standard exception");
+            }
         },
         py::arg("outer_diameter"),
         py::arg("wire_diameter"),
@@ -240,4 +261,26 @@ PYBIND11_MODULE(springocct, m)
         py::arg("total_coils"),
         py::arg("end_type"),
         py::arg("inactive_coils"));
+
+    m.def("debug_environment", []() {
+        const char* keys[] = {
+            "SPRING_DEBUG_ALL",
+            "SPRING_DEBUG_BASIC",
+            "SPRING_DEBUG_SWEEP",
+            "SPRING_DEBUG_GROUNDING",
+            "SPRING_DEBUG_PIGTAIL",
+            "SPRING_DEBUG_TAPERED",
+        };
+
+        py::dict result;
+        for (const char* key : keys) {
+            const char* value = std::getenv(key);
+            if (value) {
+                result[py::str(key)] = py::str(value);
+            } else {
+                result[py::str(key)] = py::none();
+            }
+        }
+        return result;
+    });
 }

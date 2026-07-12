@@ -34,7 +34,9 @@
 #include <gp_Circ2d.hxx>
 #include <gp_Lin2d.hxx>
 #include <gp_Pnt2d.hxx>
+#include <cstdlib>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <algorithm>
@@ -42,8 +44,11 @@
 #include <limits>
 #include <TColgp_Array1OfPnt2d.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TopAbs.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Solid.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Wire.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -57,17 +62,19 @@
 // -----------------------------------------------------------------------------
 // Production builds are quiet by default. The verbose diagnostics that were used
 // while stabilizing the end-type geometry are intentionally retained, but they are
-// now opt-in compile-time diagnostics instead of unconditional console output.
+// now opt-in diagnostics instead of unconditional console output. Each flag can
+// be enabled either at compile time or as a runtime environment variable.
 //
 // Enable everything:
+//   SPRING_DEBUG_ALL=1
 //   -DSPRING_DEBUG_ALL=1
 //
 // Or enable narrower families:
-//   -DSPRING_DEBUG_BASIC=1
-//   -DSPRING_DEBUG_SWEEP=1
-//   -DSPRING_DEBUG_GROUNDING=1
-//   -DSPRING_DEBUG_PIGTAIL=1
-//   -DSPRING_DEBUG_TAPERED=1
+//   SPRING_DEBUG_BASIC=1
+//   SPRING_DEBUG_SWEEP=1
+//   SPRING_DEBUG_GROUNDING=1
+//   SPRING_DEBUG_PIGTAIL=1
+//   SPRING_DEBUG_TAPERED=1
 #ifndef SPRING_DEBUG_ALL
 #define SPRING_DEBUG_ALL 0
 #endif
@@ -109,57 +116,87 @@ inline std::ostream& SpringNullStream()
     return stream;
 }
 
+inline bool SpringDebugBasicEnabled();
+inline bool SpringDebugSweepEnabled();
+inline bool SpringDebugGroundingEnabled();
+inline bool SpringDebugPigtailEnabled();
+inline bool SpringDebugTaperedEnabled();
+
 inline std::ostream& SpringDebugStream()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_BASIC || SPRING_DEBUG_SWEEP || SPRING_DEBUG_GROUNDING || SPRING_DEBUG_PIGTAIL || SPRING_DEBUG_TAPERED
-    return std::cout;
-#else
+    if (SpringDebugBasicEnabled() ||
+        SpringDebugSweepEnabled() ||
+        SpringDebugGroundingEnabled() ||
+        SpringDebugPigtailEnabled() ||
+        SpringDebugTaperedEnabled()) {
+        return std::cerr;
+    }
     return SpringNullStream();
+}
+
+inline bool SpringDebugEnvEnabled(const char* name)
+{
+    const char* value = std::getenv(name);
+    if (value == nullptr || value[0] == '\0') {
+        return false;
+    }
+
+    const std::string flag(value);
+    return flag != "0" && flag != "false" && flag != "FALSE" &&
+           flag != "off" && flag != "OFF" && flag != "no" && flag != "NO";
+}
+
+inline bool SpringDebugAllEnabled()
+{
+#if SPRING_DEBUG_ALL
+    return true;
+#else
+    return SpringDebugEnvEnabled("SPRING_DEBUG_ALL");
 #endif
 }
 
 inline bool SpringDebugBasicEnabled()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_BASIC
+#if SPRING_DEBUG_BASIC
     return true;
 #else
-    return false;
+    return SpringDebugAllEnabled() || SpringDebugEnvEnabled("SPRING_DEBUG_BASIC");
 #endif
 }
 
 inline bool SpringDebugSweepEnabled()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_SWEEP
+#if SPRING_DEBUG_SWEEP
     return true;
 #else
-    return false;
+    return SpringDebugAllEnabled() || SpringDebugEnvEnabled("SPRING_DEBUG_SWEEP");
 #endif
 }
 
 inline bool SpringDebugGroundingEnabled()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_GROUNDING
+#if SPRING_DEBUG_GROUNDING
     return true;
 #else
-    return false;
+    return SpringDebugAllEnabled() || SpringDebugEnvEnabled("SPRING_DEBUG_GROUNDING");
 #endif
 }
 
 inline bool SpringDebugPigtailEnabled()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_PIGTAIL
+#if SPRING_DEBUG_PIGTAIL
     return true;
 #else
-    return false;
+    return SpringDebugAllEnabled() || SpringDebugEnvEnabled("SPRING_DEBUG_PIGTAIL");
 #endif
 }
 
 inline bool SpringDebugTaperedEnabled()
 {
-#if SPRING_DEBUG_ALL || SPRING_DEBUG_TAPERED
+#if SPRING_DEBUG_TAPERED
     return true;
 #else
-    return false;
+    return SpringDebugAllEnabled() || SpringDebugEnvEnabled("SPRING_DEBUG_TAPERED");
 #endif
 }
 
@@ -246,6 +283,91 @@ static Standard_Real SafeVolume(const TopoDS_Shape& S)
     GProp_GProps props;
     BRepGProp::VolumeProperties(S, props);
     return props.Mass();
+}
+
+static std::string ShapeSummary(const TopoDS_Shape& shape)
+{
+    if (shape.IsNull()) {
+        return "shape=null";
+    }
+
+    Standard_Integer solidCount = 0;
+    for (TopExp_Explorer explorer(shape, TopAbs_SOLID); explorer.More(); explorer.Next()) {
+        ++solidCount;
+    }
+
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+
+    std::ostringstream summary;
+    summary << "shapeType=" << static_cast<int>(shape.ShapeType())
+            << " solids=" << solidCount
+            << " volume=" << SafeVolume(shape);
+
+    if (box.IsVoid()) {
+        summary << " bbox=void";
+    } else {
+        Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+        box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+        summary << " bbox=("
+                << xmin << "," << ymin << "," << zmin
+                << " -> "
+                << xmax << "," << ymax << "," << zmax
+                << ")";
+    }
+
+    return summary.str();
+}
+
+static TopoDS_Shape CutShape(
+    const TopoDS_Shape& base,
+    const TopoDS_Shape& tool,
+    const char* label)
+{
+    BRepAlgoAPI_Cut cut(base, tool);
+    cut.Build();
+
+    if (!cut.IsDone()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " failed: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool));
+    }
+
+    TopoDS_Shape result = cut.Shape();
+    if (result.IsNull()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " produced a null shape: base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool));
+    }
+
+    SPRING_DEBUG_STREAM << label << " result: " << ShapeSummary(result) << std::endl;
+    return result;
+}
+
+static bool HasUsableBoundingBox(const TopoDS_Shape& shape)
+{
+    if (shape.IsNull()) {
+        return false;
+    }
+
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    if (box.IsVoid()) {
+        return false;
+    }
+
+    Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+    box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+    return std::isfinite(xmin) && std::isfinite(ymin) && std::isfinite(zmin) &&
+           std::isfinite(xmax) && std::isfinite(ymax) && std::isfinite(zmax) &&
+           xmax > xmin && ymax > ymin && zmax > zmin;
 }
 
 static void DumpBBox(const std::string& name, const TopoDS_Shape& S)
@@ -1786,6 +1908,8 @@ TopoDS_Shape compression_spring_solid(
                 if (helixPipeShape.IsNull()) {
                     throw Standard_Failure("PipeShell produced a null shape");
                 }
+                SPRING_DEBUG_STREAM << "helixPipeShape summary: "
+                                    << ShapeSummary(helixPipeShape) << std::endl;
                 DumpShapeState("helixPipeShape", helixPipeShape);
                 {
                     Bnd_Box springBox;
@@ -1930,6 +2054,8 @@ TopoDS_Shape compression_spring_solid(
                 if (helixPipeShape.IsNull()) {
                     throw Standard_Failure("PipeShell produced a null shape");
                 }
+                SPRING_DEBUG_STREAM << "helixPipeShape summary: "
+                                    << ShapeSummary(helixPipeShape) << std::endl;
                 DumpShapeState("helixPipeShape", helixPipeShape);
                 {
                     Bnd_Box springBox;
@@ -1995,6 +2121,8 @@ TopoDS_Shape compression_spring_solid(
             if (helixPipeShape.IsNull()) {
                 throw Standard_Failure("PipeShell produced a null shape");
             }
+            SPRING_DEBUG_STREAM << "openHelixPipeShape summary: "
+                                << ShapeSummary(helixPipeShape) << std::endl;
             DumpShapeState("openHelixPipeShape", helixPipeShape);
         }
 
@@ -2033,15 +2161,23 @@ TopoDS_Shape compression_spring_solid(
             // Cut Bottom and Top Cutter Boxes from Total Helix Pipe
             SPRING_DEBUG_STREAM << "Create Compression Spring from Helix Pipe minus Cutters" << std::endl;
 
-            TopoDS_Shape cutAfterBottom = BRepAlgoAPI_Cut(helixPipeShape, bottomHelixCutterTransformed);
+            TopoDS_Shape cutAfterBottom = CutShape(
+                helixPipeShape,
+                bottomHelixCutterTransformed,
+                "bottom ground cut");
             DumpShapeState("cutAfterBottom", cutAfterBottom);
             DumpCutDelta("bottom cut", helixPipeShape, cutAfterBottom);
 
-            TopoDS_Shape cutAfterTop = BRepAlgoAPI_Cut(cutAfterBottom, topHelixCutterTransformed);
+            TopoDS_Shape cutAfterTop = CutShape(
+                cutAfterBottom,
+                topHelixCutterTransformed,
+                "top ground cut");
             DumpShapeState("cutAfterTop", cutAfterTop);
             DumpCutDelta("top cut", cutAfterBottom, cutAfterTop);
 
             compressionSpring = cutAfterTop;
+            SPRING_DEBUG_STREAM << "compressionSpring after ground cuts: "
+                                << ShapeSummary(compressionSpring) << std::endl;
         } else {
             SPRING_DEBUG_STREAM << "Create Compression Spring from Helix Pipe directly" << std::endl;
             compressionSpring = helixPipeShape;
@@ -2064,15 +2200,24 @@ TopoDS_Shape compression_spring_solid(
     }
 
     if (compressionSpring.IsNull()) {
-        throw Standard_Failure("Produced a null final shape");
+        throw std::runtime_error("Produced a null final shape");
+    }
+    if (!HasUsableBoundingBox(compressionSpring)) {
+        throw std::runtime_error(
+            std::string("Produced a final shape with unusable bounding box: ") +
+            ShapeSummary(compressionSpring));
     }
 
     BRepCheck_Analyzer finalAnalyzer(compressionSpring);
     if (!finalAnalyzer.IsValid()) {
-        throw Standard_Failure("Produced an invalid final shape");
+        throw std::runtime_error(
+            std::string("Produced an invalid final shape: ") +
+            ShapeSummary(compressionSpring));
     }
 
     SPRING_DEBUG_STREAM << "Ending compression_spring_solid" << std::endl;
+    SPRING_DEBUG_STREAM << "FINAL compressionSpring summary: "
+                        << ShapeSummary(compressionSpring) << std::endl;
     DumpShapeState("FINAL compressionSpring", compressionSpring);
     return compressionSpring;
 }
