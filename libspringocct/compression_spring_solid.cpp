@@ -20,13 +20,11 @@
 #include <Geom2d_OffsetCurve.hxx>
 #include <Geom2d_Parabola.hxx>
 #include <Geom2d_TrimmedCurve.hxx>
-#include <Geom2dConvert.hxx>
-#include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
 #include <Geom2dAPI_PointsToBSpline.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_Curve.hxx>
+#include <Geom_Surface.hxx>
 #include <GeomAPI_PointsToBSpline.hxx>
-#include <GeomConvert_CompCurveToBSplineCurve.hxx>
 #include <Precision.hxx>
 #include <Standard_Failure.hxx>
 #include <gp_Ax2d.hxx>
@@ -51,6 +49,7 @@
 #include <TopoDS_Solid.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Wire.hxx>
+#include <TopTools_ListOfShape.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
@@ -208,6 +207,10 @@ constexpr Standard_Real kPigtailLowSpringIndex = 4.5;
 constexpr Standard_Real kPigtailHighIndexEndCoils = 0.65;
 constexpr Standard_Real kPigtailLowIndexEndCoils = 0.25;
 constexpr Standard_Real kPigtailLowIndexTransitionTurns = 1.0;
+// Long middle regions are split for downstream meshing/rendering robustness. End
+// and transition regions intentionally remain single semantic edges; their turn
+// counts are bounded by the end-type construction above.
+constexpr Standard_Real kMiddleSpineTurnsPerEdge = 1.0;
 }
 
 #define SPRING_DEBUG_STREAM SpringDebugStream()
@@ -324,7 +327,23 @@ static TopoDS_Shape CutShape(
     const TopoDS_Shape& tool,
     const char* label)
 {
-    BRepAlgoAPI_Cut cut(base, tool);
+    TopTools_ListOfShape arguments;
+    arguments.Append(base);
+    TopTools_ListOfShape tools;
+    tools.Append(tool);
+
+    Bnd_Box bounds;
+    BRepBndLib::Add(base, bounds);
+    BRepBndLib::Add(tool, bounds);
+    const Standard_Real fuzzyValue =
+        10.0 * std::sqrt(bounds.SquareExtent()) * Precision::Confusion();
+
+    BRepAlgoAPI_Cut cut;
+    cut.SetArguments(arguments);
+    cut.SetTools(tools);
+    cut.SetFuzzyValue(fuzzyValue);
+    cut.SetRunParallel(Standard_True);
+    cut.SetNonDestructive(Standard_True);
     cut.Build();
 
     if (!cut.IsDone()) {
@@ -346,7 +365,22 @@ static TopoDS_Shape CutShape(
             ShapeSummary(tool));
     }
 
-    SPRING_DEBUG_STREAM << label << " result: " << ShapeSummary(result) << std::endl;
+    BRepCheck_Analyzer analyzer(result);
+    if (!analyzer.IsValid()) {
+        throw std::runtime_error(
+            std::string(label) +
+            " produced an invalid result: " +
+            ShapeSummary(result) +
+            "; base " +
+            ShapeSummary(base) +
+            "; tool " +
+            ShapeSummary(tool) +
+            "; fuzzy=" +
+            std::to_string(fuzzyValue));
+    }
+
+    SPRING_DEBUG_STREAM << label << " result: " << ShapeSummary(result)
+                        << " fuzzy=" << fuzzyValue << std::endl;
     return result;
 }
 
@@ -1026,47 +1060,6 @@ Make3DBSplineFrom2DCurveVariableRadius(
     return builder.Curve();
 }
 
-inline Handle(Geom_BSplineCurve)
-MakeCombinedSpringSpine3D(
-    const Handle(Geom2d_TrimmedCurve)& bottomHelixSegment,
-    const Handle(Geom2d_TrimmedCurve)& bottomTransitionSegment,
-    const Handle(Geom2d_TrimmedCurve)& middleHelixSegment,
-    const Handle(Geom2d_TrimmedCurve)& topTransitionSegment,
-    const Handle(Geom2d_TrimmedCurve)& topHelixSegment,
-    const Standard_Real helixRadius,
-    const Standard_Real endHelixRadius,
-    const Standard_Real zShift)
-{
-    const Standard_Real tol = Precision::Confusion();
-
-    Handle(Geom_BSplineCurve) bottomHelix3d =
-        Make3DBSplineFrom2DCurveVariableRadius(bottomHelixSegment, endHelixRadius, endHelixRadius, zShift, 48);
-    Handle(Geom_BSplineCurve) bottomTransition3d =
-        Make3DBSplineFrom2DCurveVariableRadius(bottomTransitionSegment, endHelixRadius, helixRadius, zShift, 48);
-    Handle(Geom_BSplineCurve) middleHelix3d =
-        Make3DBSplineFrom2DCurveVariableRadius(middleHelixSegment, helixRadius, helixRadius, zShift, 128);
-    Handle(Geom_BSplineCurve) topTransition3d =
-        Make3DBSplineFrom2DCurveVariableRadius(topTransitionSegment, helixRadius, endHelixRadius, zShift, 48);
-    Handle(Geom_BSplineCurve) topHelix3d =
-        Make3DBSplineFrom2DCurveVariableRadius(topHelixSegment, endHelixRadius, endHelixRadius, zShift, 48);
-
-    GeomConvert_CompCurveToBSplineCurve concat(bottomHelix3d);
-    if (!concat.Add(bottomTransition3d, tol)) {
-        throw Standard_Failure("Failed to concatenate bottomTransition3d");
-    }
-    if (!concat.Add(middleHelix3d, tol)) {
-        throw Standard_Failure("Failed to concatenate middleHelix3d");
-    }
-    if (!concat.Add(topTransition3d, tol)) {
-        throw Standard_Failure("Failed to concatenate topTransition3d");
-    }
-    if (!concat.Add(topHelix3d, tol)) {
-        throw Standard_Failure("Failed to concatenate topHelix3d");
-    }
-
-    return concat.BSplineCurve();
-}
-
 inline TopoDS_Wire
 MakeSectionAt3D(
     const Handle(Geom_Curve)& spine3d,
@@ -1107,35 +1100,259 @@ MakeSectionAt3D(
     return BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(circle).Edge()).Wire();
 }
 
-inline Handle(Geom2d_BSplineCurve)
-MakeCombinedSpringSegmentExact(
+inline TopoDS_Edge
+MakeSurfaceCurveEdge(
+    const Handle(Geom2d_Curve)& curve,
+    const Handle(Geom_Surface)& surface)
+{
+    TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve, surface).Edge();
+    BRepLib::BuildCurve3d(edge);
+    return edge;
+}
+
+inline Standard_Integer
+CountEdges(const TopoDS_Shape& shape)
+{
+    Standard_Integer count = 0;
+    for (TopExp_Explorer explorer(shape, TopAbs_EDGE); explorer.More(); explorer.Next()) {
+        ++count;
+    }
+    return count;
+}
+
+inline void
+ValidateSegmentedWire(
+    const TopoDS_Wire& wire,
+    const Standard_Integer expectedEdges,
+    const char* label)
+{
+    BRepCheck_Analyzer analyzer(wire);
+    if (!analyzer.IsValid()) {
+        throw Standard_Failure(label);
+    }
+
+    const Standard_Integer actualEdges = CountEdges(wire);
+    if (actualEdges != expectedEdges) {
+        std::ostringstream message;
+        message << label << ": expected " << expectedEdges
+                << " edges, got " << actualEdges;
+        throw Standard_Failure(message.str().c_str());
+    }
+
+    SPRING_DEBUG_STREAM << label << ": validated " << actualEdges
+                        << " edge(s)" << std::endl;
+}
+
+inline void
+AddMiddleHelixEdges(
+    BRepBuilderAPI_MakeWire& wireBuilder,
+    const Handle(Geom_Surface)& surface,
+    const Standard_Real startU,
+    const Standard_Real startV,
+    const Standard_Real pitch,
+    const Standard_Real turns)
+{
+    Standard_Real completedTurns = 0.0;
+    Standard_Integer edgeCount = 0;
+
+    while (completedTurns < turns - Precision::Confusion()) {
+        const Standard_Real segmentTurns =
+            std::min(kMiddleSpineTurnsPerEdge, turns - completedTurns);
+        const Standard_Real nextTurns = completedTurns + segmentTurns;
+
+        const gp_Pnt2d segmentStart(
+            startU + completedTurns * 2.0 * M_PI,
+            startV + completedTurns * pitch);
+        const gp_Pnt2d segmentEnd(
+            startU + nextTurns * 2.0 * M_PI,
+            startV + nextTurns * pitch);
+
+        Handle(Geom2d_Line) line = GCE2d_MakeLine(segmentStart, segmentEnd);
+        Handle(Geom2d_TrimmedCurve) segment = new Geom2d_TrimmedCurve(
+            line,
+            ElCLib::Parameter(line->Lin2d(), segmentStart),
+            ElCLib::Parameter(line->Lin2d(), segmentEnd));
+
+        wireBuilder.Add(MakeSurfaceCurveEdge(segment, surface));
+        completedTurns = nextTurns;
+        ++edgeCount;
+    }
+
+    SPRING_DEBUG_STREAM << "middle helix segmented into " << edgeCount
+                        << " edge(s) for " << turns << " turn(s)" << std::endl;
+}
+
+inline void
+ValidatePigtailMiddleJoin(
+    const Handle(Geom_Curve)& transition,
+    const Standard_Boolean useLastParameter,
+    const Standard_Real middleU,
+    const Standard_Real middleV,
+    const Standard_Real helixRadius,
+    const Standard_Real middlePitch,
+    const Standard_Real zShift,
+    const char* label)
+{
+    const Standard_Real parameter = useLastParameter
+        ? transition->LastParameter()
+        : transition->FirstParameter();
+    gp_Pnt transitionPoint;
+    gp_Vec transitionTangent;
+    transition->D1(parameter, transitionPoint, transitionTangent);
+
+    const gp_Pnt middlePoint = UVTo3D(middleU, middleV, helixRadius, zShift);
+    if (transitionPoint.Distance(middlePoint) > Precision::Confusion() * 100.0) {
+        throw Standard_Failure(label);
+    }
+
+    gp_Vec middleTangent(
+        -helixRadius * std::sin(middleU),
+        helixRadius * std::cos(middleU),
+        middlePitch / (2.0 * M_PI));
+    if (transitionTangent.Magnitude() <= gp::Resolution() ||
+        middleTangent.Magnitude() <= gp::Resolution()) {
+        throw Standard_Failure(label);
+    }
+    transitionTangent.Normalize();
+    middleTangent.Normalize();
+    const Standard_Real tangentDot = transitionTangent.Dot(middleTangent);
+    if (tangentDot < std::cos(5.0 * M_PI / 180.0)) {
+        throw Standard_Failure(label);
+    }
+
+    SPRING_DEBUG_STREAM << label
+                        << ": positionDelta=" << transitionPoint.Distance(middlePoint)
+                        << " tangentDot=" << tangentDot << std::endl;
+}
+
+inline TopoDS_Wire
+MakeHybridPigtailSpringWire(
     const Handle(Geom2d_TrimmedCurve)& bottomHelixSegment,
     const Handle(Geom2d_TrimmedCurve)& bottomTransitionSegment,
-    const Handle(Geom2d_TrimmedCurve)& middleHelixSegment,
     const Handle(Geom2d_TrimmedCurve)& topTransitionSegment,
-    const Handle(Geom2d_TrimmedCurve)& topHelixSegment)
+    const Handle(Geom2d_TrimmedCurve)& topHelixSegment,
+    const Handle(Geom_Surface)& middleSurface,
+    const Standard_Real middleStartU,
+    const Standard_Real middleStartV,
+    const Standard_Real middlePitch,
+    const Standard_Real middleTurns,
+    const Standard_Real helixRadius,
+    const Standard_Real endHelixRadius,
+    const Standard_Real zShift,
+    Handle(Geom_BSplineCurve)& startCurve)
 {
-    const Standard_Real tol = Precision::Confusion();
+    Handle(Geom_BSplineCurve) bottomHelix3d =
+        Make3DBSplineFrom2DCurveVariableRadius(
+            bottomHelixSegment, endHelixRadius, endHelixRadius, zShift, 48);
+    Handle(Geom_BSplineCurve) bottomTransition3d =
+        Make3DBSplineFrom2DCurveVariableRadius(
+            bottomTransitionSegment, endHelixRadius, helixRadius, zShift, 48);
+    Handle(Geom_BSplineCurve) topTransition3d =
+        Make3DBSplineFrom2DCurveVariableRadius(
+            topTransitionSegment, helixRadius, endHelixRadius, zShift, 48);
+    Handle(Geom_BSplineCurve) topHelix3d =
+        Make3DBSplineFrom2DCurveVariableRadius(
+            topHelixSegment, endHelixRadius, endHelixRadius, zShift, 48);
 
-    Handle(Geom2d_BSplineCurve) bottomHelixBs =
-        Geom2dConvert::CurveToBSplineCurve(bottomHelixSegment);
+    const Standard_Real middleEndU =
+        middleStartU + middleTurns * 2.0 * M_PI;
+    const Standard_Real middleEndV =
+        middleStartV + middleTurns * middlePitch;
+    ValidatePigtailMiddleJoin(
+        bottomTransition3d,
+        Standard_True,
+        middleStartU,
+        middleStartV,
+        helixRadius,
+        middlePitch,
+        zShift,
+        "Bottom pigtail transition/middle join is discontinuous");
+    ValidatePigtailMiddleJoin(
+        topTransition3d,
+        Standard_False,
+        middleEndU,
+        middleEndV,
+        helixRadius,
+        middlePitch,
+        zShift,
+        "Top pigtail transition/middle join is discontinuous");
 
-    Geom2dConvert_CompCurveToBSplineCurve concat(bottomHelixBs);
+    BRepBuilderAPI_MakeWire wireBuilder;
+    wireBuilder.Add(BRepBuilderAPI_MakeEdge(bottomHelix3d).Edge());
+    wireBuilder.Add(BRepBuilderAPI_MakeEdge(bottomTransition3d).Edge());
+    AddMiddleHelixEdges(
+        wireBuilder,
+        middleSurface,
+        middleStartU,
+        middleStartV,
+        middlePitch,
+        middleTurns);
+    wireBuilder.Add(BRepBuilderAPI_MakeEdge(topTransition3d).Edge());
+    wireBuilder.Add(BRepBuilderAPI_MakeEdge(topHelix3d).Edge());
 
-    if (!concat.Add(Geom2dConvert::CurveToBSplineCurve(bottomTransitionSegment), tol)) {
-        throw Standard_Failure("Failed to concatenate bottomTransitionSegment");
-    }
-    if (!concat.Add(Geom2dConvert::CurveToBSplineCurve(middleHelixSegment), tol)) {
-        throw Standard_Failure("Failed to concatenate middleHelixSegment");
-    }
-    if (!concat.Add(Geom2dConvert::CurveToBSplineCurve(topTransitionSegment), tol)) {
-        throw Standard_Failure("Failed to concatenate topTransitionSegment");
-    }
-    if (!concat.Add(Geom2dConvert::CurveToBSplineCurve(topHelixSegment), tol)) {
-        throw Standard_Failure("Failed to concatenate topHelixSegment");
+    if (!wireBuilder.IsDone()) {
+        throw Standard_Failure("Failed to build hybrid pigtail spring wire");
     }
 
-    return concat.BSplineCurve();
+    const TopoDS_Wire wire = wireBuilder.Wire();
+    const Standard_Integer middleEdgeCount = static_cast<Standard_Integer>(
+        std::ceil(
+            middleTurns / kMiddleSpineTurnsPerEdge - Precision::Confusion()));
+    ValidateSegmentedWire(
+        wire,
+        middleEdgeCount + 4,
+        "Hybrid pigtail spring wire is invalid");
+    startCurve = bottomHelix3d;
+    return wire;
+}
+
+inline TopoDS_Wire
+MakeSurfaceMappedSpringWire(
+    const Handle(Geom2d_TrimmedCurve)& bottomHelixSegment,
+    const Handle(Geom2d_TrimmedCurve)& bottomTransitionSegment,
+    const Handle(Geom2d_TrimmedCurve)& topTransitionSegment,
+    const Handle(Geom2d_TrimmedCurve)& topHelixSegment,
+    const Handle(Geom_Surface)& surface,
+    const Standard_Real middleStartU,
+    const Standard_Real middleStartV,
+    const Standard_Real middlePitch,
+    const Standard_Real middleTurns,
+    const Standard_Boolean hasClosedEnd)
+{
+    BRepBuilderAPI_MakeWire wireBuilder;
+
+    if (hasClosedEnd) {
+        wireBuilder.Add(MakeSurfaceCurveEdge(bottomHelixSegment, surface));
+        wireBuilder.Add(MakeSurfaceCurveEdge(bottomTransitionSegment, surface));
+    }
+
+    AddMiddleHelixEdges(
+        wireBuilder,
+        surface,
+        middleStartU,
+        middleStartV,
+        middlePitch,
+        middleTurns);
+
+    if (hasClosedEnd) {
+        wireBuilder.Add(MakeSurfaceCurveEdge(topTransitionSegment, surface));
+        wireBuilder.Add(MakeSurfaceCurveEdge(topHelixSegment, surface));
+    }
+
+    if (!wireBuilder.IsDone()) {
+        throw Standard_Failure("Failed to build segmented surface-mapped spring wire");
+    }
+
+    const TopoDS_Wire wire = wireBuilder.Wire();
+    const Standard_Integer middleEdgeCount = static_cast<Standard_Integer>(
+        std::ceil(
+            middleTurns / kMiddleSpineTurnsPerEdge - Precision::Confusion()));
+    const Standard_Integer expectedEdges = middleEdgeCount + (hasClosedEnd ? 4 : 0);
+    ValidateSegmentedWire(
+        wire,
+        expectedEdges,
+        "Segmented surface-mapped spring wire is invalid");
+    return wire;
 }
 
 TopoDS_Wire MakeSectionAt(const Handle(Geom_CylindricalSurface)& helixCylinder, double helixRadius, double u, double v, double pitch, double radius)
@@ -1475,6 +1692,11 @@ TopoDS_Shape compression_spring_solid(
         const Standard_Boolean hasPigtailEnd =
             (End_Type == End_Types::PigtailClosed) ||
             (End_Type == End_Types::PigtailClosed_Ground);
+        const Standard_Real springIndex = Mean_Dia / Wire_Dia;
+        if (hasPigtailEnd && springIndex <= 4.0) {
+            throw Standard_Failure(
+                "Pigtail ends require a spring index greater than 4 for radial clearance");
+        }
 
         Standard_Real closedHelixCoils = (Coils_T - Coils_A) / 2.0; // Split between top and bottom
         Standard_Real closedHelixPitch = Wire_Dia;
@@ -1489,8 +1711,6 @@ TopoDS_Shape compression_spring_solid(
         Standard_Real pigtailTargetRadius = helixRadius * kPigtailTargetRadiusFactor; // one-half of the middle diameter => half of middle mean radius
         Standard_Real transitionTurns = kDefaultTransitionTurns;
         if (hasPigtailEnd) {
-            const Standard_Real springIndex = Mean_Dia / Wire_Dia;
-
             endHelixRadius = pigtailTargetRadius;
             if (endHelixRadius <= 0.0) {
                 throw Standard_Failure("Pigtail end radius became non-positive");
@@ -1823,20 +2043,24 @@ TopoDS_Shape compression_spring_solid(
             // Keep pigtail-specific behavior isolated here so the non-pigtail closed families
             // continue to use the proven surface-mapped path.
             if (hasPigtailEnd) {
-                SPRING_DEBUG_STREAM << "Create Helix Wire from one exact combined 3D spine" << std::endl;
-                Handle(Geom_BSplineCurve) combinedSpringSpine3d =
-                    MakeCombinedSpringSpine3D(
-                        bottomHelixSegment,
-                        bottomTransitionSegment,
-                        middleHelixSegment,
-                        topTransitionSegment,
-                        topHelixSegment,
-                        helixRadius,
-                        endHelixRadius,
-                        zShift);
-                TopoDS_Edge combinedSpringEdge =
-                    BRepBuilderAPI_MakeEdge(combinedSpringSpine3d).Edge();
-                helixWire = BRepBuilderAPI_MakeWire(combinedSpringEdge).Wire();
+                SPRING_DEBUG_STREAM
+                    << "Create hybrid pigtail wire with exact segmented middle helix"
+                    << std::endl;
+                Handle(Geom_BSplineCurve) pigtailStartCurve;
+                helixWire = MakeHybridPigtailSpringWire(
+                    bottomHelixSegment,
+                    bottomTransitionSegment,
+                    topTransitionSegment,
+                    topHelixSegment,
+                    helixCylinder,
+                    middleHelixP1.X(),
+                    middleHelixP1.Y(),
+                    middleHelixPitch,
+                    middleHelixCoils,
+                    helixRadius,
+                    endHelixRadius,
+                    zShift,
+                    pigtailStartCurve);
 
                 // Make helixPipeShape here with varying profile radius from a law
                 SPRING_DEBUG_STREAM << "Create Helix Pipe (single continuous sweep with SpringWireRadiusLaw)" << std::endl;
@@ -1848,8 +2072,8 @@ TopoDS_Shape compression_spring_solid(
                 // SpringWireRadiusLaw will scale this profile along the wire.
                 TopoDS_Wire nominalProfile =
                     MakeSectionAt3D(
-                        combinedSpringSpine3d,
-                        combinedSpringSpine3d->FirstParameter(),
+                        pigtailStartCurve,
+                        pigtailStartCurve->FirstParameter(),
                         profileRadius);
 
                 // --------------------------------------------------------------------
@@ -1963,20 +2187,24 @@ TopoDS_Shape compression_spring_solid(
                     zShift,
                     Wire_Dia);
             } else {
-                SPRING_DEBUG_STREAM << "Create Helix Wire from one exact combined spline edge" << std::endl;
-                Handle(Geom2d_BSplineCurve) combinedSpringSegment =
-                    MakeCombinedSpringSegmentExact(
-                        bottomHelixSegment,
-                        bottomTransitionSegment,
-                        middleHelixSegment,
-                        topTransitionSegment,
-                        topHelixSegment);
-                TopoDS_Edge combinedSpringEdge = BRepBuilderAPI_MakeEdge(combinedSpringSegment, helixCylinder).Edge();
-                BRepLib::BuildCurve3d(combinedSpringEdge);
-                helixWire = BRepBuilderAPI_MakeWire(combinedSpringEdge).Wire();
+                const bool hasVariableProfileRadius =
+                    std::fabs(endScale - nominalScale) > Precision::Confusion();
+                SPRING_DEBUG_STREAM
+                    << "Create semantically segmented surface-mapped Helix Wire"
+                    << std::endl;
+                helixWire = MakeSurfaceMappedSpringWire(
+                    bottomHelixSegment,
+                    bottomTransitionSegment,
+                    topTransitionSegment,
+                    topHelixSegment,
+                    helixCylinder,
+                    middleHelixP1.X(),
+                    middleHelixP1.Y(),
+                    middleHelixPitch,
+                    middleHelixCoils,
+                    Standard_True);
 
-                // Make helixPipeShape here with varying profile radius from a law
-                SPRING_DEBUG_STREAM << "Create Helix Pipe (single continuous sweep with SpringWireRadiusLaw)" << std::endl;
+                SPRING_DEBUG_STREAM << "Create Helix Pipe (single continuous sweep)" << std::endl;
                 BRepOffsetAPI_MakePipeShell pipe(helixWire);
                 pipe.SetMode(Standard_True); // Frenet, or maybe gp_Dir(0, 0, 1)
                 pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
@@ -2040,7 +2268,95 @@ TopoDS_Shape compression_spring_solid(
                     u5,
                     L_Free);
 
-                pipe.SetLaw(nominalProfile, radiusLaw, Standard_False /* WithContact*/, Standard_True /* WithCorrection */);
+                if (hasVariableProfileRadius) {
+                    // SetLaw is evaluated independently on every spine edge, which repeats
+                    // a global taper on each segmented middle coil. Define the taper through
+                    // explicit end-region sections instead; equal nominal sections spanning
+                    // both transitions and the middle keep those regions at constant diameter.
+                    constexpr Standard_Integer taperSamples = 8;
+                    SPRING_DEBUG_STREAM
+                        << "Use region-local tapered profile sections; middle remains nominal"
+                        << std::endl;
+
+                    for (Standard_Integer i = 0; i <= taperSamples; ++i) {
+                        const Standard_Real t =
+                            static_cast<Standard_Real>(i) /
+                            static_cast<Standard_Real>(taperSamples);
+                        const Standard_Real parameter =
+                            bottomHelixSegment->FirstParameter() +
+                            t * (bottomHelixSegment->LastParameter() -
+                                 bottomHelixSegment->FirstParameter());
+                        const gp_Pnt2d uv = bottomHelixSegment->Value(parameter);
+                        const Standard_Real scale =
+                            endScale + (nominalScale - endScale) * SmoothStep01(t);
+                        pipe.Add(
+                            MakeSectionAt(
+                                helixCylinder,
+                                helixRadius,
+                                uv.X(),
+                                uv.Y(),
+                                closedHelixPitch,
+                                profileRadius * scale),
+                            Standard_False,
+                            Standard_True);
+                    }
+
+                    const gp_Pnt2d bottomTransitionEnd = bottomTransitionSegment->Value(
+                        bottomTransitionSegment->LastParameter());
+                    pipe.Add(
+                        MakeSectionAt(
+                            helixCylinder,
+                            helixRadius,
+                            bottomTransitionEnd.X(),
+                            bottomTransitionEnd.Y(),
+                            middleHelixPitch,
+                            profileRadius),
+                        Standard_False,
+                        Standard_True);
+
+                    const gp_Pnt2d middleEnd = middleHelixSegment->Value(
+                        middleHelixSegment->LastParameter());
+                    pipe.Add(
+                        MakeSectionAt(
+                            helixCylinder,
+                            helixRadius,
+                            middleEnd.X(),
+                            middleEnd.Y(),
+                            middleHelixPitch,
+                            profileRadius),
+                        Standard_False,
+                        Standard_True);
+
+                    for (Standard_Integer i = 0; i <= taperSamples; ++i) {
+                        const Standard_Real t =
+                            static_cast<Standard_Real>(i) /
+                            static_cast<Standard_Real>(taperSamples);
+                        const Standard_Real parameter =
+                            topHelixSegment->FirstParameter() +
+                            t * (topHelixSegment->LastParameter() -
+                                 topHelixSegment->FirstParameter());
+                        const gp_Pnt2d uv = topHelixSegment->Value(parameter);
+                        const Standard_Real scale =
+                            nominalScale + (endScale - nominalScale) * SmoothStep01(t);
+                        pipe.Add(
+                            MakeSectionAt(
+                                helixCylinder,
+                                helixRadius,
+                                uv.X(),
+                                uv.Y(),
+                                closedHelixPitch,
+                                profileRadius * scale),
+                            Standard_False,
+                            Standard_True);
+                    }
+                }
+                else {
+                    pipe.SetLaw(
+                        nominalProfile,
+                        radiusLaw,
+                        Standard_False /* WithContact*/,
+                        Standard_True /* WithCorrection */);
+                }
 
                 pipe.Build();
                 DumpPipeShellState("singlePipe after Build", pipe);
@@ -2099,10 +2415,18 @@ TopoDS_Shape compression_spring_solid(
                 }
             }
         } else {
-            SPRING_DEBUG_STREAM << "Create Helix Wire from Middle Helix" << std::endl;
-            TopoDS_Edge middleSpringEdge = BRepBuilderAPI_MakeEdge(middleHelixSegment, helixCylinder).Edge();
-            BRepLib::BuildCurve3d(middleSpringEdge);
-            helixWire = BRepBuilderAPI_MakeWire(middleSpringEdge).Wire();
+            SPRING_DEBUG_STREAM << "Create segmented Helix Wire from Middle Helix" << std::endl;
+            helixWire = MakeSurfaceMappedSpringWire(
+                bottomHelixSegment,
+                bottomTransitionSegment,
+                topTransitionSegment,
+                topHelixSegment,
+                helixCylinder,
+                middleHelixP1.X(),
+                middleHelixP1.Y(),
+                middleHelixPitch,
+                middleHelixCoils,
+                Standard_False);
 
             // Make helixPipeShape here with one profile
             BRepOffsetAPI_MakePipeShell helixPipe(helixWire);

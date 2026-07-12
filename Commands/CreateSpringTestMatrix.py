@@ -121,8 +121,8 @@ class CreateSpringTestMatrix:
                 dict(od=28, wire=2.8, length=40, coils=6, end=8, inactive=2),
             ),
             (
-                "Stress_PigtailClosed_LowIndex",
-                dict(od=28, wire=5.6, length=70, coils=6, end=9, inactive=1),
+                "Stress_PigtailClosed_JustAboveMinimumIndex",
+                dict(od=28, wire=5.49, length=70, coils=6, end=9, inactive=1),
             ),
             (
                 "Stress_PigtailClosed_Ground_HighIndex",
@@ -185,6 +185,10 @@ class CreateSpringTestMatrix:
             ("Negative inactive coils", dict(inactive=-1)),
             ("Inactive coils greater than total coils", dict(coils=4, inactive=5)),
             ("Closed inactive coils greater than total coils", dict(coils=4, end=3, inactive=5)),
+            (
+                "PigtailClosed with spring index 4",
+                dict(od=28, wire=5.6, length=70, coils=6, end=9, inactive=1),
+            ),
         ]
 
         negative_pass_count = 0

@@ -234,6 +234,20 @@ class TestSpring(unittest.TestCase):
                     "LengthAtFree": h
                 })
 
+    def test_pigtail_rejects_spring_index_at_or_below_four(self):
+        message = "Pigtail ends require a spring index greater than 4 for radial clearance"
+        for end_type in (9, 10):
+            with self.subTest(end_type=end_type):
+                with self.assertRaisesRegex(RuntimeError, message):
+                    CompressionSpring.springocct.compression_spring_solid(
+                        outer_diameter=8.4,
+                        wire_diameter=2.8,
+                        free_length=80.0,
+                        total_coils=10.0,
+                        end_type=end_type,
+                        inactive_coils=2.0,
+                    )
+
 if __name__ == "__main__":
     print("✅ Entering unittest.main() ...")
     unittest.main(module=None, verbosity=2)

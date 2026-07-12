@@ -164,13 +164,9 @@ def set_alerts(obj, errors=None, warnings=None, infos=None) -> None:
 def raise_for_alert_errors(obj) -> None:
     """Raise when object-owned alerts contain fatal errors."""
 
-    has_errors = False
-    for error in getattr(obj, "AlertErrors", []):
-        has_errors = True
-        break
-
-    if has_errors:
-        raise ValueError("Alert error")
+    errors = [str(error) for error in getattr(obj, "AlertErrors", [])]
+    if errors:
+        raise ValueError("; ".join(errors))
 
 
 def recompute_for_alert_state(obj) -> None:
@@ -266,6 +262,12 @@ def update_basic_alerts(obj) -> None:
 
     try:
         spring_index = float(getattr(obj, "SpringIndex"))
+        end_type = getattr(obj, "EndType", None)
+        if isinstance(end_type, (list, tuple)):
+            end_type = end_type[0] if end_type else None
+        if str(end_type) in ("PigtailClosed", "PigtailClosed&Ground") and spring_index <= 4.0:
+            has_errors = True
+            errors.append("Pigtail ends require a spring index greater than 4 for radial clearance")
         if spring_index < 4.0 or spring_index > 25.0:
             warnings.append("Spring index is outside the recommended range of 4 to 25. Manufacturing may be difficult.")
     except (AttributeError, TypeError, ValueError):
