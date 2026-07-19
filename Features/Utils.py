@@ -189,7 +189,7 @@ def recompute_for_alert_state(obj) -> None:
             pass
 
 
-def update_basic_alerts(obj) -> None:
+def update_basic_alerts(obj, include_derived=True) -> None:
     """Populate generic spring alerts that are independent of display code."""
 
     has_errors = False
@@ -235,12 +235,13 @@ def update_basic_alerts(obj) -> None:
         has_errors = True
         errors.append("Inactive coils must be between zero and total coils.")
 
-    try:
-        coils_active = float(getattr(obj, "CoilsActive"))
-        if coils_active < 1.0:
+    if coils_total is not None and coils_inactive is not None:
+        coils_active = coils_total - coils_inactive
+        if coils_active <= 0.0:
+            has_errors = True
+            errors.append("Active coils must be greater than zero.")
+        elif coils_active < 1.0:
             warnings.append("Active coils are less than 1.")
-    except (AttributeError, TypeError, ValueError):
-        pass
 
     try:
         length_at_free = float(getattr(obj, "LengthAtFree"))
@@ -251,17 +252,21 @@ def update_basic_alerts(obj) -> None:
         length_at_free = None
         warnings.append("Free length input is incomplete.")
 
-    try:
-        length_at_solid = float(getattr(obj, "LengthAtSolid"))
-    except (AttributeError, TypeError, ValueError):
-        length_at_solid = None
+    if include_derived:
+        try:
+            length_at_solid = float(getattr(obj, "LengthAtSolid"))
+        except (AttributeError, TypeError, ValueError):
+            length_at_solid = None
 
-    if length_at_free is not None and length_at_solid is not None and length_at_free < length_at_solid:
-        has_errors = True
-        errors.append("Free length must not be less than solid length.")
+        if length_at_free is not None and length_at_solid is not None and length_at_free < length_at_solid:
+            has_errors = True
+            errors.append("Free length must not be less than solid length.")
 
     try:
-        spring_index = float(getattr(obj, "SpringIndex"))
+        if outside_diameter is not None and wire_diameter is not None and wire_diameter > 0.0:
+            spring_index = (outside_diameter - wire_diameter) / wire_diameter
+        else:
+            spring_index = float(getattr(obj, "SpringIndex"))
         end_type = getattr(obj, "EndType", None)
         if isinstance(end_type, (list, tuple)):
             end_type = end_type[0] if end_type else None

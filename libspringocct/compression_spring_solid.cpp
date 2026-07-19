@@ -20,6 +20,8 @@
 #include <Geom2d_OffsetCurve.hxx>
 #include <Geom2d_Parabola.hxx>
 #include <Geom2d_TrimmedCurve.hxx>
+#include <Geom2dConvert.hxx>
+#include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
 #include <Geom2dAPI_PointsToBSpline.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_Curve.hxx>
@@ -51,10 +53,15 @@
 #include <TopoDS_Wire.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck.hxx>
+#include <BRepCheck_ListOfStatus.hxx>
+#include <BRepCheck_Result.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include "SpringWireRadiusLaw.hpp"
 // -----------------------------------------------------------------------------
 // Spring diagnostics
@@ -288,6 +295,22 @@ static Standard_Real SafeVolume(const TopoDS_Shape& S)
     return props.Mass();
 }
 
+static const char* ShapeTypeName(const TopAbs_ShapeEnum shapeType)
+{
+    switch (shapeType) {
+    case TopAbs_COMPOUND:  return "COMPOUND";
+    case TopAbs_COMPSOLID: return "COMPSOLID";
+    case TopAbs_SOLID:     return "SOLID";
+    case TopAbs_SHELL:     return "SHELL";
+    case TopAbs_FACE:      return "FACE";
+    case TopAbs_WIRE:      return "WIRE";
+    case TopAbs_EDGE:      return "EDGE";
+    case TopAbs_VERTEX:    return "VERTEX";
+    case TopAbs_SHAPE:     return "SHAPE";
+    }
+    return "UNKNOWN";
+}
+
 static std::string ShapeSummary(const TopoDS_Shape& shape)
 {
     if (shape.IsNull()) {
@@ -303,7 +326,8 @@ static std::string ShapeSummary(const TopoDS_Shape& shape)
     BRepBndLib::Add(shape, box);
 
     std::ostringstream summary;
-    summary << "shapeType=" << static_cast<int>(shape.ShapeType())
+    summary << "shapeType=" << ShapeTypeName(shape.ShapeType())
+            << "(" << static_cast<int>(shape.ShapeType()) << ")"
             << " solids=" << solidCount
             << " volume=" << SafeVolume(shape);
 
@@ -320,6 +344,157 @@ static std::string ShapeSummary(const TopoDS_Shape& shape)
     }
 
     return summary.str();
+}
+
+static std::string ShapeLabel(
+    const TopoDS_Shape& shape,
+    const TopTools_IndexedMapOfShape& allShapes)
+{
+    std::ostringstream label;
+    label << ShapeTypeName(shape.ShapeType()) << "#";
+
+    Standard_Integer typeIndex = 0;
+    const Standard_Integer shapeIndex = allShapes.FindIndex(shape);
+    if (shapeIndex == 0) {
+        label << "?";
+        return label.str();
+    }
+    for (Standard_Integer index = 1; index <= shapeIndex; ++index) {
+        if (allShapes(index).ShapeType() == shape.ShapeType()) {
+            ++typeIndex;
+        }
+    }
+
+    label << typeIndex;
+    return label.str();
+}
+
+static std::string ShapeBoundsSummary(const TopoDS_Shape& shape)
+{
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    if (box.IsVoid()) {
+        return "bbox=void";
+    }
+
+    Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+    box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+    std::ostringstream bounds;
+    bounds << "bbox=("
+           << xmin << "," << ymin << "," << zmin
+           << " -> "
+           << xmax << "," << ymax << "," << zmax
+           << ")";
+    return bounds.str();
+}
+
+static std::string BRepCheckStatusName(const BRepCheck_Status status)
+{
+    std::ostringstream statusText;
+    BRepCheck::Print(status, statusText);
+
+    // BRepCheck::Print appends a newline in supported OCCT releases. Strip all
+    // trailing whitespace so the complete Python exception remains one line.
+    std::string name = statusText.str();
+    const std::string::size_type lastCharacter = name.find_last_not_of(" \t\r\n");
+    if (lastCharacter == std::string::npos) {
+        return "BRepCheck_UnknownStatus";
+    }
+    name.erase(lastCharacter + 1);
+    return name;
+}
+
+static bool AppendInvalidStatuses(
+    std::ostringstream& details,
+    const BRepCheck_ListOfStatus& statuses,
+    const std::string& context,
+    bool& needsSeparator)
+{
+    bool appended = false;
+    for (BRepCheck_ListIteratorOfListOfStatus iterator(statuses);
+         iterator.More();
+         iterator.Next()) {
+        const BRepCheck_Status status = iterator.Value();
+        if (status == BRepCheck_NoError) {
+            continue;
+        }
+
+        if (needsSeparator) {
+            details << ", ";
+        }
+        details << BRepCheckStatusName(status);
+        if (!context.empty()) {
+            details << " in " << context;
+        }
+        needsSeparator = true;
+        appended = true;
+    }
+    return appended;
+}
+
+static std::string ShapeValidationDetails(
+    const TopoDS_Shape& shape,
+    const BRepCheck_Analyzer& analyzer)
+{
+    // Map each topological entity once so diagnostics can identify the exact
+    // offending subshape with stable, type-local labels such as EDGE#12.
+    TopTools_IndexedMapOfShape allShapes;
+    TopExp::MapShapes(shape, allShapes);
+
+    constexpr Standard_Integer maxReportedSubshapes = 40;
+    Standard_Integer invalidSubshapeCount = 0;
+    std::ostringstream details;
+
+    for (Standard_Integer index = 1; index <= allShapes.Extent(); ++index) {
+        const TopoDS_Shape& subshape = allShapes(index);
+        Handle(BRepCheck_Result) result = analyzer.Result(subshape);
+        if (result.IsNull()) {
+            continue;
+        }
+
+        std::ostringstream subshapeDetails;
+        bool needsSeparator = false;
+        bool hasInvalidStatus = AppendInvalidStatuses(
+            subshapeDetails, result->Status(), "", needsSeparator);
+
+        result->InitContextIterator();
+        while (result->MoreShapeInContext()) {
+            const TopoDS_Shape& contextShape = result->ContextualShape();
+            hasInvalidStatus = AppendInvalidStatuses(
+                                   subshapeDetails,
+                                   result->StatusOnShape(),
+                                   ShapeLabel(contextShape, allShapes),
+                                   needsSeparator) ||
+                               hasInvalidStatus;
+            result->NextShapeInContext();
+        }
+
+        if (!hasInvalidStatus) {
+            continue;
+        }
+
+        ++invalidSubshapeCount;
+        if (invalidSubshapeCount <= maxReportedSubshapes) {
+            if (invalidSubshapeCount > 1) {
+                details << "; ";
+            }
+            details << ShapeLabel(subshape, allShapes)
+                    << " " << ShapeBoundsSummary(subshape)
+                    << " [" << subshapeDetails.str() << "]";
+        }
+    }
+
+    if (invalidSubshapeCount == 0) {
+        return "no subshape status was reported by BRepCheck";
+    }
+    if (invalidSubshapeCount > maxReportedSubshapes) {
+        details << "; ... "
+                << (invalidSubshapeCount - maxReportedSubshapes)
+                << " more invalid subshape(s) omitted";
+    }
+
+    return details.str();
 }
 
 static TopoDS_Shape CutShape(
@@ -376,7 +551,9 @@ static TopoDS_Shape CutShape(
             "; tool " +
             ShapeSummary(tool) +
             "; fuzzy=" +
-            std::to_string(fuzzyValue));
+            std::to_string(fuzzyValue) +
+            "; invalid=" +
+            ShapeValidationDetails(result, analyzer));
     }
 
     SPRING_DEBUG_STREAM << label << " result: " << ShapeSummary(result)
@@ -1355,6 +1532,58 @@ MakeSurfaceMappedSpringWire(
     return wire;
 }
 
+inline TopoDS_Wire
+MakeShortMiddleSurfaceMappedSpringWire(
+    const Handle(Geom2d_TrimmedCurve)& bottomHelixSegment,
+    const Handle(Geom2d_TrimmedCurve)& bottomTransitionSegment,
+    const Handle(Geom2d_TrimmedCurve)& middleHelixSegment,
+    const Handle(Geom2d_TrimmedCurve)& topTransitionSegment,
+    const Handle(Geom2d_TrimmedCurve)& topHelixSegment,
+    const Handle(Geom_Surface)& surface)
+{
+    const Standard_Real tolerance = Precision::Confusion();
+    Handle(Geom2d_BSplineCurve) bottomTransition =
+        Geom2dConvert::CurveToBSplineCurve(bottomTransitionSegment);
+    Geom2dConvert_CompCurveToBSplineCurve combinedMiddle(bottomTransition);
+
+    if (!middleHelixSegment.IsNull()) {
+        if (!combinedMiddle.Add(
+                Geom2dConvert::CurveToBSplineCurve(middleHelixSegment),
+                tolerance)) {
+            throw Standard_Failure(
+                "Failed to combine short spring middle helix");
+        }
+    }
+    if (!combinedMiddle.Add(
+            Geom2dConvert::CurveToBSplineCurve(topTransitionSegment),
+            tolerance)) {
+        throw Standard_Failure(
+            "Failed to combine short spring top transition");
+    }
+
+    TopoDS_Edge combinedMiddleEdge = BRepBuilderAPI_MakeEdge(
+        combinedMiddle.BSplineCurve(), surface).Edge();
+    BRepLib::BuildCurve3d(combinedMiddleEdge);
+
+    // Keep the end helices as separate semantic edges. Tapered springs attach
+    // profile sections to those regions and must not spread their taper across
+    // the transition/middle spline.
+    BRepBuilderAPI_MakeWire wireBuilder;
+    wireBuilder.Add(MakeSurfaceCurveEdge(bottomHelixSegment, surface));
+    wireBuilder.Add(combinedMiddleEdge);
+    wireBuilder.Add(MakeSurfaceCurveEdge(topHelixSegment, surface));
+    if (!wireBuilder.IsDone()) {
+        throw Standard_Failure("Failed to build short-middle spring wire");
+    }
+
+    const TopoDS_Wire wire = wireBuilder.Wire();
+    ValidateSegmentedWire(
+        wire,
+        3,
+        "Short-middle spring wire is invalid");
+    return wire;
+}
+
 TopoDS_Wire MakeSectionAt(const Handle(Geom_CylindricalSurface)& helixCylinder, double helixRadius, double u, double v, double pitch, double radius)
 {
     SPRING_DEBUG_STREAM << "MakeSectionAt" << " u=" << u << " v=" << v << " pitch=" << pitch << " radius=" << radius << std::endl;
@@ -1793,8 +2022,28 @@ TopoDS_Shape compression_spring_solid(
           middleHelixCoils = Coils_A - 2.0 * transitionTurns;
         }
 
-        if (middleHelixCoils <= 0.0) {
-            throw Standard_Failure("Computed middle helix coil count must be positive");
+        // The active coils form the complete middle section: bottom transition,
+        // any constant-pitch middle turns, and top transition. If that complete
+        // section is under one turn, omit the constant middle and divide all
+        // available turns equally between two shorter transitions.
+        const Standard_Boolean hasTransitionOnlyMiddle =
+            hasClosedEnd && !hasPigtailEnd && Coils_A < 1.0;
+        if (hasTransitionOnlyMiddle) {
+            transitionTurns = 0.5 * Coils_A;
+            middleHelixCoils = 0.0;
+            SPRING_DEBUG_STREAM
+                << "transition-only middle section: transitionTurns="
+                << transitionTurns << std::endl;
+        }
+
+        const Standard_Boolean allowsZeroMiddle = hasClosedEnd && !hasPigtailEnd;
+        if (middleHelixCoils < -Precision::Confusion() ||
+            (!allowsZeroMiddle && middleHelixCoils <= Precision::Confusion())) {
+            throw Standard_Failure("Computed middle helix coil count is invalid");
+        }
+        if (allowsZeroMiddle &&
+            std::fabs(middleHelixCoils) <= Precision::Confusion()) {
+            middleHelixCoils = 0.0;
         }
         if (middleHelixCoils + transitionTurns <= 0.0) {
             throw Standard_Failure("Computed middle pitch denominator must be positive");
@@ -1978,10 +2227,20 @@ TopoDS_Shape compression_spring_solid(
         SPRING_DEBUG_STREAM << "middleHelixP1=" << middleHelixP1 << std::endl;
         gp_Pnt2d middleHelixP2(u + middleHelixCoils * 2. * M_PI, v + middleHelixCoils * middleHelixPitch);
         SPRING_DEBUG_STREAM << "middleHelixP2=" << middleHelixP2 << std::endl;
-        Handle(Geom2d_Line) middleHelixLine = GCE2d_MakeLine(middleHelixP1, middleHelixP2);
-        SPRING_DEBUG_STREAM << "middleHelixLine=" << middleHelixLine << std::endl;
-        middleHelixSegment = new Geom2d_TrimmedCurve(middleHelixLine, ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP1), ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP2));
-        SPRING_DEBUG_STREAM << "middleHelixSegment=" << middleHelixSegment << std::endl;
+        if (middleHelixCoils > Precision::Confusion()) {
+            Handle(Geom2d_Line) middleHelixLine =
+                GCE2d_MakeLine(middleHelixP1, middleHelixP2);
+            SPRING_DEBUG_STREAM << "middleHelixLine=" << middleHelixLine << std::endl;
+            middleHelixSegment = new Geom2d_TrimmedCurve(
+                middleHelixLine,
+                ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP1),
+                ElCLib::Parameter(middleHelixLine->Lin2d(), middleHelixP2));
+            SPRING_DEBUG_STREAM << "middleHelixSegment="
+                                << middleHelixSegment << std::endl;
+        }
+        else {
+            SPRING_DEBUG_STREAM << "middleHelixSegment omitted" << std::endl;
+        }
 
         u += middleHelixCoils * 2.0 * M_PI;
         v += middleHelixCoils * middleHelixPitch;
@@ -2189,25 +2448,55 @@ TopoDS_Shape compression_spring_solid(
             } else {
                 const bool hasVariableProfileRadius =
                     std::fabs(endScale - nominalScale) > Precision::Confusion();
-                SPRING_DEBUG_STREAM
-                    << "Create semantically segmented surface-mapped Helix Wire"
-                    << std::endl;
-                helixWire = MakeSurfaceMappedSpringWire(
-                    bottomHelixSegment,
-                    bottomTransitionSegment,
-                    topTransitionSegment,
-                    topHelixSegment,
-                    helixCylinder,
-                    middleHelixP1.X(),
-                    middleHelixP1.Y(),
-                    middleHelixPitch,
-                    middleHelixCoils,
-                    Standard_True);
+                if (middleHelixCoils < kMiddleSpineTurnsPerEdge) {
+                    // With less than one middle turn, the steep transition-to-body
+                    // pitch change can make OCCT's multi-edge pipe produce a bad
+                    // p-curve at the first join. Combine both transitions and the
+                    // middle into one exact surface edge while retaining separate
+                    // end-helix edges for tapered profile control.
+                    SPRING_DEBUG_STREAM
+                        << "Create three-edge short-middle surface-mapped Helix Wire"
+                        << std::endl;
+                    helixWire = MakeShortMiddleSurfaceMappedSpringWire(
+                        bottomHelixSegment,
+                        bottomTransitionSegment,
+                        middleHelixSegment,
+                        topTransitionSegment,
+                        topHelixSegment,
+                        helixCylinder);
+                }
+                else {
+                    SPRING_DEBUG_STREAM
+                        << "Create semantically segmented surface-mapped Helix Wire"
+                        << std::endl;
+                    helixWire = MakeSurfaceMappedSpringWire(
+                        bottomHelixSegment,
+                        bottomTransitionSegment,
+                        topTransitionSegment,
+                        topHelixSegment,
+                        helixCylinder,
+                        middleHelixP1.X(),
+                        middleHelixP1.Y(),
+                        middleHelixPitch,
+                        middleHelixCoils,
+                        Standard_True);
+                }
 
                 SPRING_DEBUG_STREAM << "Create Helix Pipe (single continuous sweep)" << std::endl;
                 BRepOffsetAPI_MakePipeShell pipe(helixWire);
-                pipe.SetMode(Standard_True); // Frenet, or maybe gp_Dir(0, 0, 1)
-                pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
+                if (hasTransitionOnlyMiddle) {
+                    // Corrected Frenet transport avoids frame flips across a
+                    // constant-radius transition-only middle. Tapered springs
+                    // use explicit profile sections and retain Frenet transport.
+                    pipe.SetMode(hasVariableProfileRadius
+                                     ? Standard_True
+                                     : Standard_False);
+                    pipe.SetTransitionMode(BRepBuilderAPI_Transformed);
+                }
+                else {
+                    pipe.SetMode(Standard_True);
+                    pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
+                }
 
                 // Use ONE nominal-radius profile, anchored at the start of the spring.
                 // SpringWireRadiusLaw will scale this profile along the wire.
@@ -2314,18 +2603,20 @@ TopoDS_Shape compression_spring_solid(
                         Standard_False,
                         Standard_True);
 
-                    const gp_Pnt2d middleEnd = middleHelixSegment->Value(
-                        middleHelixSegment->LastParameter());
-                    pipe.Add(
-                        MakeSectionAt(
-                            helixCylinder,
-                            helixRadius,
-                            middleEnd.X(),
-                            middleEnd.Y(),
-                            middleHelixPitch,
-                            profileRadius),
-                        Standard_False,
-                        Standard_True);
+                    if (!middleHelixSegment.IsNull()) {
+                        const gp_Pnt2d middleEnd = middleHelixSegment->Value(
+                            middleHelixSegment->LastParameter());
+                        pipe.Add(
+                            MakeSectionAt(
+                                helixCylinder,
+                                helixRadius,
+                                middleEnd.X(),
+                                middleEnd.Y(),
+                                middleHelixPitch,
+                                profileRadius),
+                            Standard_False,
+                            Standard_True);
+                    }
 
                     for (Standard_Integer i = 0; i <= taperSamples; ++i) {
                         const Standard_Real t =
@@ -2536,7 +2827,9 @@ TopoDS_Shape compression_spring_solid(
     if (!finalAnalyzer.IsValid()) {
         throw std::runtime_error(
             std::string("Produced an invalid final shape: ") +
-            ShapeSummary(compressionSpring));
+            ShapeSummary(compressionSpring) +
+            "; invalid=" +
+            ShapeValidationDetails(compressionSpring, finalAnalyzer));
     }
 
     SPRING_DEBUG_STREAM << "Ending compression_spring_solid" << std::endl;

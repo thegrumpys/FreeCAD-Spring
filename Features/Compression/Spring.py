@@ -169,9 +169,25 @@ class CompressionSpring:
 
     def execute(self, obj):
 #        FreeCAD.Console.PrintMessage(f"[CompressionSpring.execute] self={self} obj={obj}\n")
+        # Validate primary inputs first. Derived values still describe the
+        # previous recompute at this point and must not reject the new inputs.
+        CoreUtils.update_basic_alerts(obj, include_derived=False)
+        CoreUtils.refresh_alert_panel_for(obj)
+        CoreUtils.raise_for_alert_errors(obj)
+
+        # Refresh dependent values before shape generation.  The OCCT sweep can
+        # fail for otherwise valid inputs; derived properties such as
+        # CoilsActive must still reflect the user's latest values in that case.
+        SpringUtils.update_globals(obj)
+        SpringUtils.update_properties(obj)
+        _apply_spring_index_view_quality(obj)
+
+        # Now validate the freshly calculated derived values, including solid
+        # length, before asking OCCT to construct the shape.
         CoreUtils.update_basic_alerts(obj)
         CoreUtils.refresh_alert_panel_for(obj)
         CoreUtils.raise_for_alert_errors(obj)
+
         try:
             spring = springocct.compression_spring_solid(
                 outer_diameter=obj.OutsideDiameterAtFree,
@@ -184,9 +200,6 @@ class CompressionSpring:
         except Exception as e:
             raise
 #        FreeCAD.Console.PrintMessage("springocct compression_spring_solid: " f"return: {spring}\n")
-        SpringUtils.update_globals(obj)
-        SpringUtils.update_properties(obj)
-        _apply_spring_index_view_quality(obj)
         obj.Shape = spring
 #        print("Compression spring solid created and displayed successfully.")
 

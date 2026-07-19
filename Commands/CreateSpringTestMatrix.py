@@ -101,6 +101,10 @@ class CreateSpringTestMatrix:
                 dict(od=28, wire=2.8, length=35, coils=6, end=3, inactive=2),
             ),
             (
+                "Stress_Closed_ShortMiddleSteepPitch",
+                dict(od=28, wire=2.8, length=80, coils=3.5967, end=3, inactive=2),
+            ),
+            (
                 "Stress_TaperedClosed_Ground_Thin",
                 dict(od=28, wire=2.0, length=80, coils=8, end=8, inactive=2),
             ),
@@ -117,8 +121,32 @@ class CreateSpringTestMatrix:
                 dict(od=28, wire=2.8, length=45, coils=8, end=5, inactive=4),
             ),
             (
+                "Stress_DoubleClosed_HalfTurnMiddle",
+                dict(od=28, wire=2.8, length=80, coils=5.5, end=5, inactive=4),
+            ),
+            (
+                "Stress_DoubleClosed_TransitionOnlyMiddle",
+                dict(od=28, wire=2.8, length=80, coils=4.5, end=5, inactive=4),
+            ),
+            (
+                "Stress_DoubleClosed_TransitionOnlyMiddle_Short",
+                dict(od=28, wire=2.8, length=30, coils=4.5, end=5, inactive=4),
+            ),
+            (
+                "Stress_DoubleClosedGround_TransitionOnlyMiddle",
+                dict(od=28, wire=2.8, length=80, coils=4.5, end=6, inactive=4),
+            ),
+            (
                 "Stress_TaperedClosed_Ground_Short",
                 dict(od=28, wire=2.8, length=40, coils=6, end=8, inactive=2),
+            ),
+            (
+                "Stress_TaperedClosed_HalfTurnMiddle",
+                dict(od=28, wire=2.8, length=80, coils=3.5, end=7, inactive=2),
+            ),
+            (
+                "Stress_TaperedClosedGround_HalfTurnMiddle",
+                dict(od=28, wire=2.8, length=80, coils=3.5, end=8, inactive=2),
             ),
             (
                 "Stress_PigtailClosed_JustAboveMinimumIndex",

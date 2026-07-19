@@ -248,6 +248,63 @@ class TestSpring(unittest.TestCase):
                         inactive_coils=2.0,
                     )
 
+    def test_double_closed_short_middle_is_valid(self):
+        shape = CompressionSpring.springocct.compression_spring_solid(
+            outer_diameter=28.0,
+            wire_diameter=2.8,
+            free_length=80.0,
+            total_coils=5.5,
+            end_type=5,
+            inactive_coils=4.0,
+        )
+
+        self.assertTrue(_check_shape_valid(shape))
+        self.assertGreater(shape.Volume, 0.0)
+
+    def test_double_closed_transition_only_middle_is_valid(self):
+        for end_type in (5, 6):
+            for free_length in (30.0, 80.0):
+                with self.subTest(end_type=end_type, free_length=free_length):
+                    shape = CompressionSpring.springocct.compression_spring_solid(
+                        outer_diameter=28.0,
+                        wire_diameter=2.8,
+                        free_length=free_length,
+                        total_coils=4.5,
+                        end_type=end_type,
+                        inactive_coils=4.0,
+                    )
+
+                    self.assertTrue(_check_shape_valid(shape))
+                    self.assertGreater(shape.Volume, 0.0)
+
+    def test_single_closed_short_middle_is_valid(self):
+        shape = CompressionSpring.springocct.compression_spring_solid(
+            outer_diameter=28.0,
+            wire_diameter=2.8,
+            free_length=80.0,
+            total_coils=3.5967,
+            end_type=3,
+            inactive_coils=2.0,
+        )
+
+        self.assertTrue(_check_shape_valid(shape))
+        self.assertGreater(shape.Volume, 0.0)
+
+    def test_tapered_closed_short_middle_is_valid(self):
+        for end_type in (7, 8):
+            with self.subTest(end_type=end_type):
+                shape = CompressionSpring.springocct.compression_spring_solid(
+                    outer_diameter=28.0,
+                    wire_diameter=2.8,
+                    free_length=80.0,
+                    total_coils=3.5,
+                    end_type=end_type,
+                    inactive_coils=2.0,
+                )
+
+                self.assertTrue(_check_shape_valid(shape))
+                self.assertGreater(shape.Volume, 0.0)
+
 if __name__ == "__main__":
     print("✅ Entering unittest.main() ...")
     unittest.main(module=None, verbosity=2)
