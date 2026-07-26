@@ -486,14 +486,40 @@ def update_globals(obj) -> None:
             obj.StressLimitStatic = obj.Tensile * obj.PercentTensileStatic / 100.0;
             end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
             match end_type_index:
-                case 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10:
-                    obj.setEditorMode("CoilsInactive", 1) # Visible R/O
-                    obj.setEditorMode("GrindAmount", 1) # Visible R/O
-                    obj.setEditorMode("TaperAmount", 1) # Visible R/O
-                case 11 | 12 | 13 | 14: # UserSpecifiedOpen, UserSpecifiedOpen&Ground, UserSpecifiedClosed, UserSpecifiedClosed&Ground
-                    obj.setEditorMode("CoilsInactive", 0) # Visible R/W
-                    obj.setEditorMode("GrindAmount", 0) # Visible R/W
-                    obj.setEditorMode("TaperAmount", 0) # Visible R/W
+                case 1 | 3 | 5:  # Open, Closed, DoubleClosed
+                    obj.setEditorMode("CoilsInactive", 1)   # Visible R/O
+                    obj.setEditorMode("GrindAmount", 2)     # Hidden
+                    obj.setEditorMode("ClosedReduction", 2) # Hidden
+            
+                case 2 | 4 | 6:  # Open&Ground, Closed&Ground, DoubleClosed&Ground
+                    obj.setEditorMode("CoilsInactive", 1)   # Visible R/O
+                    obj.setEditorMode("GrindAmount", 1)     # Visible R/O
+                    obj.setEditorMode("ClosedReduction", 2) # Hidden
+            
+                case 7 | 9:  # TaperedClosed, PigtailClosed
+                    obj.setEditorMode("CoilsInactive", 1)   # Visible R/O
+                    obj.setEditorMode("GrindAmount", 2)     # Hidden
+                    obj.setEditorMode("ClosedReduction", 1) # Visible R/O
+            
+                case 8 | 10:  # TaperedClosed&Ground, PigtailClosed&Ground
+                    obj.setEditorMode("CoilsInactive", 1)   # Visible R/O
+                    obj.setEditorMode("GrindAmount", 1)     # Visible R/O
+                    obj.setEditorMode("ClosedReduction", 1) # Visible R/O
+            
+                case 11 | 13:  # UserSpecifiedOpen, UserSpecifiedClosed
+                    obj.setEditorMode("CoilsInactive", 0)   # Visible R/W
+                    obj.setEditorMode("GrindAmount", 2)     # Hidden
+                    obj.setEditorMode("ClosedReduction", 0) # Visible R/W
+            
+                case 12 | 14:  # UserSpecifiedOpen&Ground, UserSpecifiedClosed&Ground
+                    obj.setEditorMode("CoilsInactive", 0)   # Visible R/W
+                    obj.setEditorMode("GrindAmount", 0)     # Visible R/W
+                    obj.setEditorMode("ClosedReduction", 0) # Visible R/W
+            
+                case _:  # Missing or unrecognized end type
+                    obj.setEditorMode("CoilsInactive", 1)   # Visible R/O
+                    obj.setEditorMode("GrindAmount", 2)     # Hidden
+                    obj.setEditorMode("ClosedReduction", 2) # Hidden
             obj.setEditorMode("MaterialType", 0) # Visible R/W
             obj.setEditorMode("ASTMFedSpec", 0) # Visible R/W
             obj.setEditorMode("Process", 0) # Visible R/W
@@ -504,8 +530,66 @@ def update_globals(obj) -> None:
             obj.setEditorMode("Tensile", 1) # Visible R/O
             obj.setEditorMode("PercentTensileEndurance", 1) # Visible R/O
             obj.setEditorMode("PercentTensileStatic", 1) # Visible R/O
+            
             obj.setEditorMode("StressLimitEndurance", 1) # Visible R/O
             obj.setEditorMode("StressLimitStatic", 1) # Visible R/O
+
+        
+        
+        
+
+# 1   [ "Open",                       0.0,            0.0,          0.0],
+# 2   [ "Open&Ground",                1.0,            1.0,          0.0],
+# 3   [ "Closed",                     2.0,            0.0,          0.0],
+# 4   [ "Closed&Ground",              2.0,            1.0,          0.0],
+# 5   [ "DoubleClosed",               4.0,            0.0,          0.0],
+# 6   [ "DoubleClosed&Ground",        4.0,            1.0,          0.0],
+# 7   [ "TaperedClosed",              2.0,            0.0,          0.5],
+# 8   [ "TaperedClosed&Ground",       2.0,            0.5,          0.5],
+# 9   [ "PigtailClosed",              2.0,            0.0,          2.0],
+# 10   [ "PigtailClosed&Ground",       2.0,            1.0,          1.0],
+# 11   [ "UserSpecifiedOpen",          0.0,            0.0,          0.0],
+# 12   [ "UserSpecifiedOpen&Ground",   1.0,            1.0,          0.0],
+# 13   [ "UserSpecifiedClosed",        2.0,            0.0,          0.0],
+# 14   [ "UserSpecifiedClosed&Ground", 2.0,            1.0,          0.0]
+
+#  if (et_tab[j][eto.end_type] === "Open&Ground" || 
+#      et_tab[j][eto.end_type] === "Closed&Ground" ||
+#      et_tab[j][eto.end_type] === "DoubleClosed&Ground" ||
+#      et_tab[j][eto.end_type] === "TaperedClosed&Ground" ||
+#      et_tab[j][eto.end_type] === "PigtailClosed&Ground" ||
+#      et_tab[j][eto.end_type] === "UserSpecifiedOpen&Ground" ||
+#      et_tab[j][eto.end_type] === "UserSpecifiedClosed&Ground") {
+#    store.dispatch(changeSymbolHidden("Grind_Amount", false));
+#  } else {
+#    store.dispatch(changeSymbolHidden("Grind_Amount", true));
+#  }
+#
+#  if (et_tab[j][eto.end_type] === "TaperedClosed" ||
+#      et_tab[j][eto.end_type] === "TaperedClosed&Ground" ||
+#      et_tab[j][eto.end_type] === "PigtailClosed" ||
+#      et_tab[j][eto.end_type] === "PigtailClosed&Ground" ||
+#      (et_tab[j][eto.end_type]).startsWith("UserSpecified")) {
+#    store.dispatch(changeSymbolHidden("Closed_Reduction", false));
+#  } else {
+#    store.dispatch(changeSymbolHidden("Closed_Reduction", true));
+#  }
+#
+#  if ((et_tab[j][eto.end_type]).startsWith("UserSpecified")) {
+#    store.dispatch(changeSymbolInput("Inactive_Coils", true));
+#    store.dispatch(changeSymbolInput("Grind_Amount", true));
+#    store.dispatch(changeSymbolInput("Closed_Reduction", true));
+#  } else {
+#    store.dispatch(changeSymbolInput("Inactive_Coils", false));
+#    store.dispatch(changeSymbolInput("Grind_Amount", false));
+#    store.dispatch(changeSymbolInput("Closed_Reduction", false));
+#  }
+        
+        
+        
+        
+        
+        
         case 2: # Prop_Calc_Method = 2 - Specify Tensile, %_Tensile_Stat & %_Tensile_Endur
             pass #tbd
         case 3: # Prop_Calc_Method = 3 - Specify Stress_Lim_Stat & Stress_Lim_Endur
@@ -588,7 +672,7 @@ def update_properties(obj) -> None:
     obj.CoilsActive = obj.CoilsTotal - obj.CoilsInactive
     end_type_index = _enum_index("Compression", "EndType", getattr(obj, "EndType", None))
 #    print(f"[update_properties] end_type_index={end_type_index}")
-    r = 0.5; # Taper_Amount
+    r = 0.5; # Closed_Reduction
     match end_type_index:
         case 1: # Open
             obj.Pitch = (obj.LengthAtFree - obj.WireDiameter) / obj.CoilsActive
@@ -603,9 +687,9 @@ def update_properties(obj) -> None:
         case 6: # Double Closed & Ground
             obj.Pitch = (obj.LengthAtFree - 2.0 * obj.WireDiameter) / obj.CoilsActive
         case 7: # Tapered Closed
-            obj.Pitch = (obj.LengthAtFree - ((9.0 + 3.0 * r) / 4.0) * obj.WireDiameter) / obj.CoilsActive
+            obj.Pitch = (obj.LengthAtFree - ((9.0 + 3.0 * r) / 8.0) * obj.WireDiameter) / obj.CoilsActive
         case 8: # Tapered Closed & Ground
-            obj.Pitch = (obj.LengthAtFree - ((3.0 + r) / 2.0) * obj.WireDiameter) / obj.CoilsActive
+            obj.Pitch = (obj.LengthAtFree - ((3.0 + r) / 4.0) * obj.WireDiameter) / obj.CoilsActive
         case 9: # Pig Tail Closed
             obj.Pitch = (obj.LengthAtFree - 3.0 * obj.WireDiameter) / obj.CoilsActive
         case 10: # Pig Tail Closed & Ground
@@ -626,7 +710,7 @@ def update_properties(obj) -> None:
     obj.LengthAtDeflection2 = obj.LengthAtFree - obj.Deflection2
     obj.LengthStroke = obj.LengthAtDeflection1 - obj.LengthAtDeflection2
     obj.Slenderness = obj.LengthAtFree / obj.MeanDiameterAtFree
-    obj.LengthAtSolid = obj.WireDiameter * (obj.CoilsTotal + (1.0 - obj.GrindAmount - obj.CoilsInactive * obj.TaperAmount))
+    obj.LengthAtSolid = obj.WireDiameter * (obj.CoilsTotal + (1.0 - obj.GrindAmount - obj.ClosedReduction))
     obj.ForceAtSolid = obj.Rate * (obj.LengthAtFree - obj.LengthAtSolid)
     s_f = ks * 8.0 * obj.MeanDiameterAtFree / (math.pi * obj.WireDiameter * obj.WireDiameter * obj.WireDiameter)
     obj.StressAtDeflection1 = s_f * obj.ForceAtDeflection1

@@ -179,26 +179,26 @@ class TestSpring(unittest.TestCase):
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 0.0)
         self.assertTrue(hasattr(spring, "GrindAmount"))
         self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 0.0)
-        self.assertTrue(hasattr(spring, "TaperAmount"))
-        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+        self.assertTrue(hasattr(spring, "ClosedReduction"))
+        self.assertAlmostEqual(getattr(spring, "ClosedReduction", 0.0), 0.0)
 
         spring.EndType = "Open&Ground"
         self.doc.recompute()
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 0.0)
         self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 1.0)
-        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+        self.assertAlmostEqual(getattr(spring, "ClosedReduction", 0.0), 0.0)
 
         spring.EndType = "Closed"
         self.doc.recompute()
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
         self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 0.0)
-        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+        self.assertAlmostEqual(getattr(spring, "ClosedReduction", 0.0), 0.0)
 
         spring.EndType = "Closed&Ground"
         self.doc.recompute()
         self.assertAlmostEqual(getattr(spring, "CoilsInactive", 0.0), 2.0)
         self.assertAlmostEqual(getattr(spring, "GrindAmount", 0.0), 1.0)
-        self.assertAlmostEqual(getattr(spring, "TaperAmount", 0.0), 0.0)
+        self.assertAlmostEqual(getattr(spring, "ClosedReduction", 0.0), 0.0)
 
     def test_open_variants_have_no_closed_coils(self):
         spring = CompressionSpring.make()

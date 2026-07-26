@@ -142,7 +142,7 @@ class CompressionSpring:
         CoreUtils.add_property(obj, "EndType", None, "App::PropertyEnumeration", "Global")
         CoreUtils.add_property(obj, "CoilsInactive", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "GrindAmount", 0.0, "App::PropertyFloat", "Global")
-        CoreUtils.add_property(obj, "TaperAmount", 0.0, "App::PropertyFloat", "Global")
+        CoreUtils.add_property(obj, "ClosedReduction", 0.0, "App::PropertyFloat", "Global")
         CoreUtils.add_property(obj, "CatalogName", "", "App::PropertyString", "Global", 2) # hidden
         CoreUtils.add_property(obj, "CatalogNumber", "", "App::PropertyString", "Global", 2) # hidden
         CoreUtils.add_property(obj, "tbase010", 0.254, "App::PropertyFloat", "Global", 2)  # hidden # set value = 0.010

@@ -22,6 +22,7 @@
 #include <Geom2d_TrimmedCurve.hxx>
 #include <Geom2dConvert.hxx>
 #include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
+#include <GeomConvert_CompCurveToBSplineCurve.hxx>
 #include <Geom2dAPI_PointsToBSpline.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_Curve.hxx>
@@ -206,7 +207,7 @@ inline bool SpringDebugTaperedEnabled()
 #endif
 }
 
-constexpr Standard_Real kTaperAmount = 0.5;
+constexpr Standard_Real kClosed_Reduction = 0.5;
 constexpr Standard_Real kDefaultTransitionTurns = 0.5;
 constexpr Standard_Real kPigtailTargetRadiusFactor = 0.5;
 constexpr Standard_Real kPigtailHighSpringIndex = 7.0;
@@ -1456,15 +1457,51 @@ MakeHybridPigtailSpringWire(
 
     BRepBuilderAPI_MakeWire wireBuilder;
     wireBuilder.Add(BRepBuilderAPI_MakeEdge(bottomHelix3d).Edge());
-    wireBuilder.Add(BRepBuilderAPI_MakeEdge(bottomTransition3d).Edge());
-    AddMiddleHelixEdges(
-        wireBuilder,
-        middleSurface,
-        middleStartU,
-        middleStartV,
-        middlePitch,
-        middleTurns);
-    wireBuilder.Add(BRepBuilderAPI_MakeEdge(topTransition3d).Edge());
+
+    Standard_Integer expectedEdges = 0;
+    if (middleTurns < kMiddleSpineTurnsPerEdge) {
+        // Keep both planar pigtail curls as separate edges, but remove the two
+        // transition/middle seams that make short, steep pigtails unorientable.
+        const gp_Pnt2d middleStart(middleStartU, middleStartV);
+        const gp_Pnt2d middleEnd(middleEndU, middleEndV);
+        Handle(Geom2d_Line) middleLine = GCE2d_MakeLine(middleStart, middleEnd);
+        Handle(Geom2d_TrimmedCurve) middleSegment = new Geom2d_TrimmedCurve(
+            middleLine,
+            ElCLib::Parameter(middleLine->Lin2d(), middleStart),
+            ElCLib::Parameter(middleLine->Lin2d(), middleEnd));
+        Handle(Geom_BSplineCurve) middle3d =
+            Make3DBSplineFrom2DCurveVariableRadius(
+                middleSegment, helixRadius, helixRadius, zShift, 64);
+
+        GeomConvert_CompCurveToBSplineCurve combinedMiddle(bottomTransition3d);
+        const Standard_Real joinTolerance = Precision::Confusion() * 100.0;
+        if (!combinedMiddle.Add(middle3d, joinTolerance) ||
+            !combinedMiddle.Add(topTransition3d, joinTolerance)) {
+            throw Standard_Failure(
+                "Failed to combine short pigtail transitions and middle");
+        }
+        wireBuilder.Add(
+            BRepBuilderAPI_MakeEdge(combinedMiddle.BSplineCurve()).Edge());
+        expectedEdges = 3;
+        SPRING_DEBUG_STREAM
+            << "Combined short pigtail transitions and middle into one edge"
+            << std::endl;
+    }
+    else {
+        wireBuilder.Add(BRepBuilderAPI_MakeEdge(bottomTransition3d).Edge());
+        AddMiddleHelixEdges(
+            wireBuilder,
+            middleSurface,
+            middleStartU,
+            middleStartV,
+            middlePitch,
+            middleTurns);
+        wireBuilder.Add(BRepBuilderAPI_MakeEdge(topTransition3d).Edge());
+        const Standard_Integer middleEdgeCount = static_cast<Standard_Integer>(
+            std::ceil(
+                middleTurns / kMiddleSpineTurnsPerEdge - Precision::Confusion()));
+        expectedEdges = middleEdgeCount + 4;
+    }
     wireBuilder.Add(BRepBuilderAPI_MakeEdge(topHelix3d).Edge());
 
     if (!wireBuilder.IsDone()) {
@@ -1472,12 +1509,9 @@ MakeHybridPigtailSpringWire(
     }
 
     const TopoDS_Wire wire = wireBuilder.Wire();
-    const Standard_Integer middleEdgeCount = static_cast<Standard_Integer>(
-        std::ceil(
-            middleTurns / kMiddleSpineTurnsPerEdge - Precision::Confusion()));
     ValidateSegmentedWire(
         wire,
-        middleEdgeCount + 4,
+        expectedEdges,
         "Hybrid pigtail spring wire is invalid");
     startCurve = bottomHelix3d;
     return wire;
@@ -1845,7 +1879,7 @@ TopoDS_Shape compression_spring_solid(
             UserSpecifiedClosed,
             UserSpecifiedClosed_Ground,
         };
-        const Standard_Real r = kTaperAmount; // Taper_Amount
+        const Standard_Real r = kClosed_Reduction; // Closed_Reduction
 
         Standard_Real OD_Free = outer_diameter;
         Standard_Real Wire_Dia = wire_diameter;
